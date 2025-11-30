@@ -202,10 +202,12 @@ Events enable:
 
 | Operation | Target Latency |
 |-----------|----------------|
-| `apply_pitch()` | < 1μs |
-| `validate_state()` | < 500ns |
-| State serialization | < 10μs |
-| Full game simulation (9 innings) | < 1ms |
+| `apply_pitch()` | < 100μs |
+| `validate_state()` | < 50μs |
+| State serialization | < 100μs |
+| Full game simulation (9 innings, ~300 pitches) | < 50ms |
+
+*Note: These are initial targets. Actual benchmarks will be measured and documented after implementation.*
 
 ## Thread Safety
 

@@ -54,11 +54,11 @@ python -m venv .venv
 source .venv/bin/activate  # Linux/macOS
 # or: .venv\Scripts\activate  # Windows
 
-# Install development dependencies
-pip install -e ".[dev]"
-
-# Or install manually
+# Install development dependencies manually
 pip install maturin pytest pytest-cov mypy ruff
+
+# Or if pyproject.toml has [dev] extra defined:
+# pip install -e ".[dev]"
 ```
 
 ### 4. Build the Project

@@ -49,7 +49,7 @@ class BaseBaselomError(Exception):
         super().__init__(message)
         self.message = message
         self.code = code
-        self.details = details or {}
+        self.details = details if details is not None else {}
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert error to dictionary for serialization."""

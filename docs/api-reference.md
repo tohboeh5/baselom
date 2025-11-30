@@ -95,7 +95,7 @@ def apply_pitch(
 | `pitch_result` | `str` or `PitchResult` | Yes | Pitch outcome |
 | `rules` | `GameRules` | Yes | Rule configuration |
 | `batted_ball_result` | `str` or `BattedBallResult` | No | Result if ball is in play |
-| `runner_advances` | `Dict[int, int]` | No | Manual runner advancement {from_base: to_base} |
+| `runner_advances` | `Dict[int, int]` | No | Manual runner advancement {from_base: to_base} using 0-based indices (0=1st, 1=2nd, 2=3rd, 3=home) |
 
 #### Pitch Results
 

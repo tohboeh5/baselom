@@ -224,22 +224,36 @@ Scenario: Runner on 2nd only, ground ball
 
 ```python
 def process_walk(state, rules):
-    # Batter awarded first base
-    # Forced runners advance
+    """
+    Process walk - batter awarded first base, forced runners advance.
     
-    new_bases = list(state.bases)
+    Note: This is pseudocode showing the logic flow.
+    Actual implementation creates new immutable state.
+    """
+    # Extract current base state (immutable tuple)
+    first, second, third = state.bases
     runs_scored = 0
     
     # Check for forced advances
-    if new_bases[0] is not None:  # Runner on 1st
-        if new_bases[1] is not None:  # Runner on 2nd
-            if new_bases[2] is not None:  # Runner on 3rd
+    if first is not None:  # Runner on 1st
+        if second is not None:  # Runner on 2nd
+            if third is not None:  # Runner on 3rd
                 runs_scored += 1  # Runner scores
-            new_bases[2] = new_bases[1]  # 2nd → 3rd
-        new_bases[1] = new_bases[0]  # 1st → 2nd
+                new_third = second  # 2nd → 3rd
+            else:
+                new_third = second
+            new_second = first  # 1st → 2nd
+        else:
+            new_second = first
+            new_third = third
+        new_first = state.current_batter_id  # Batter → 1st
+    else:
+        new_first = state.current_batter_id
+        new_second = second
+        new_third = third
     
-    new_bases[0] = state.current_batter_id  # Batter → 1st
-    
+    # Return new immutable tuple
+    new_bases = (new_first, new_second, new_third)
     return new_bases, runs_scored
 ```
 

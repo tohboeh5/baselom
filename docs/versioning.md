@@ -21,9 +21,23 @@ Examples:
 
 | Component | When to Increment | Example Change |
 |-----------|-------------------|----------------|
-| **MAJOR** | Breaking API changes | Removing function, changing signature |
-| **MINOR** | New features (backward compatible) | New function, new optional parameter |
-| **PATCH** | Bug fixes (backward compatible) | Fix incorrect calculation |
+| **MAJOR** | Breaking API changes | Removing function, changing required signature, changing return type, removing fields |
+| **MINOR** | New features (backward compatible) | New function, new optional parameter, new optional field, new event type |
+| **PATCH** | Bug fixes (backward compatible) | Fix incorrect calculation, documentation fixes, performance improvements |
+
+### Version Decision Examples
+
+| Change | Version Increment | Reason |
+|--------|-------------------|--------|
+| Remove `apply_pitch()` function | MAJOR | Breaking - existing code fails |
+| Add required parameter to `apply_pitch()` | MAJOR | Breaking - existing calls fail |
+| Change `GameState.outs` from int to enum | MAJOR | Breaking - type change |
+| Change default value of `GameRules.max_innings` from 9 to None | MAJOR | Breaking - behavior change |
+| Add new optional parameter `timeout` to `apply_pitch()` | MINOR | Non-breaking - existing calls work |
+| Add new field `GameState.pitch_count` | MINOR | Non-breaking - new functionality |
+| Add new event type `balk` | MINOR | Non-breaking - additive |
+| Fix RBI calculation bug | PATCH | Non-breaking - bug fix |
+| Improve `validate_state()` performance by 50% | PATCH | Non-breaking - optimization |
 
 ## Compatibility Policy
 
