@@ -13,6 +13,16 @@ Baselom Core is a lightweight, pure game-state engine for baseball that implemen
 
 All implemented as an **immutable, testable Finite State Machine (FSM)**.
 
+## Release Roadmap
+
+| Phase | Platform | Status | Description |
+|-------|----------|--------|-------------|
+| **v0.1.0** | **Python** | 🚧 In Development | Initial release as Python library via PyO3/maturin |
+| v0.2.0 | WASM | Planned | WebAssembly build for browser and Node.js |
+| v0.3.0+ | Others | Future | Additional language bindings as needed |
+
+> **Note**: The initial release focuses on Python. The architecture is WASM-compatible from the start to enable future multi-platform support.
+
 ## Design Philosophy
 
 | Principle | Description |
@@ -64,17 +74,20 @@ All implemented as an **immutable, testable Finite State Machine (FSM)**.
 # Python (from PyPI when published)
 pip install baselom-core
 
-# Python (from source)
+# Python (from source with uv - recommended)
+git clone https://github.com/tohboeh5/baselom.git
+cd baselom
+uv sync
+uv run maturin develop
+
+# Python (from source with pip)
 git clone https://github.com/tohboeh5/baselom.git
 cd baselom
 pip install maturin
 maturin develop
 
-# JavaScript/TypeScript (from npm when published)
+# JavaScript/TypeScript (future - from npm when published)
 npm install baselom-core
-
-# JavaScript/TypeScript (from source)
-wasm-pack build --target web
 ```
 
 ### Basic Usage
@@ -98,7 +111,9 @@ state, event = apply_pitch(state, 'strike_called', rules)
 state, event = apply_pitch(state, 'in_play', rules, batted_ball_result='single')
 ```
 
-#### JavaScript/TypeScript (WASM)
+#### JavaScript/TypeScript (WASM - Future)
+
+> **Note**: WASM support is planned for v0.2.0. The API will mirror Python for consistency.
 
 ```typescript
 import init, { initialGameState, applyPitch, GameRules } from 'baselom-core';

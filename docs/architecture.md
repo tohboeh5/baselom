@@ -4,10 +4,20 @@
 
 Baselom Core is a **multi-platform Rust library** that implements a baseball game-state engine as an immutable Finite State Machine (FSM). The core is designed from the ground up to support multiple target platforms:
 
+- **Python** (v0.1.0) - via PyO3/maturin bindings (**Initial Release**)
+- **WebAssembly (WASM)** (v0.2.0+) - for browser and edge environments
 - **Native** (Linux, macOS, Windows) - via direct Rust compilation
-- **Python** - via PyO3/maturin bindings
-- **WebAssembly (WASM)** - for browser and edge environments
 - **Future**: Mobile (iOS/Android), other language bindings
+
+## Release Roadmap
+
+| Version | Platform | Technology | Status |
+|---------|----------|------------|--------|
+| **v0.1.0** | **Python** | PyO3 + maturin | 🚧 In Development |
+| v0.2.0 | WASM | wasm-bindgen | Planned |
+| v0.3.0+ | Others | TBD | Future |
+
+> **Architecture Note**: While Python is the initial target, the Rust core is designed without platform-specific dependencies from the start, enabling future WASM and other platform support without architectural changes.
 
 ## Multi-Platform Architecture
 
@@ -107,7 +117,9 @@ fn apply_pitch(
                         [Rust Core Engine]
 ```
 
-### WASM Bindings (wasm-bindgen)
+### WASM Bindings (wasm-bindgen) - v0.2.0+
+
+> **Note**: WASM support is planned for v0.2.0.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -122,7 +134,7 @@ fn apply_pitch(
                         [Rust Core Engine]
 ```
 
-### WASM Usage Example
+### WASM Usage Example (v0.2.0+)
 
 ```typescript
 // Browser / Node.js

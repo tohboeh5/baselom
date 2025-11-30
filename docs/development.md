@@ -4,6 +4,8 @@
 
 This guide covers setting up a development environment, building the project, and contributing to Baselom Core.
 
+> **Initial Release**: The first release (v0.1.0) is a Python library built with PyO3 and maturin. WASM support is planned for v0.2.0.
+
 ## Prerequisites
 
 ### Required Software
@@ -12,6 +14,7 @@ This guide covers setting up a development environment, building the project, an
 |----------|---------|---------|
 | Python | 3.9+ | Python runtime and tests |
 | Rust | 1.70+ | Core engine development |
+| uv | 0.4+ | Python project management (recommended) |
 | Git | 2.0+ | Version control |
 
 ### Recommended Tools
@@ -46,7 +49,34 @@ cargo --version
 rustup component add clippy rustfmt
 ```
 
-### 3. Setup Python
+### 3. Setup Python with uv (Recommended)
+
+[uv](https://docs.astral.sh/uv/) is the recommended Python project manager for Baselom development.
+
+```bash
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Or via pip
+pip install uv
+
+# Or via Homebrew (macOS)
+brew install uv
+
+# Verify installation
+uv --version
+
+# Sync project dependencies (creates .venv automatically)
+uv sync
+
+# Activate virtual environment (optional - uv run handles this)
+source .venv/bin/activate  # Linux/macOS
+# or: .venv\Scripts\activate  # Windows
+```
+
+### 3b. Setup Python with pip (Alternative)
+
+If you prefer traditional pip-based setup:
 
 ```bash
 # Create virtual environment
@@ -54,17 +84,17 @@ python -m venv .venv
 source .venv/bin/activate  # Linux/macOS
 # or: .venv\Scripts\activate  # Windows
 
-# Install development dependencies manually
+# Install development dependencies
 pip install maturin pytest pytest-cov mypy ruff
-
-# Or if pyproject.toml has [dev] extra defined:
-# pip install -e ".[dev]"
 ```
 
 ### 4. Build the Project
 
 ```bash
-# Development build (Python bindings)
+# With uv (recommended)
+uv run maturin develop
+
+# With pip
 maturin develop
 
 # Release build
@@ -75,7 +105,7 @@ cargo build
 cargo build --release
 ```
 
-### 5. Setup WASM Toolchain (Optional)
+### 5. Setup WASM Toolchain (Optional - for v0.2.0+)
 
 ```bash
 # Install wasm-pack
@@ -133,22 +163,24 @@ baselom/
 
 3. **Rebuild**
    ```bash
-   maturin develop  # Rebuilds Python bindings
+   uv run maturin develop  # With uv
+   # or: maturin develop   # With pip
    ```
 
 4. **Run tests**
    ```bash
-   cargo test         # Rust tests
-   pytest             # Python tests
+   cargo test                 # Rust tests
+   uv run pytest              # Python tests (with uv)
+   # or: pytest               # Python tests (with pip)
    ```
 
 5. **Lint and format**
    ```bash
    cargo fmt          # Format Rust
    cargo clippy       # Lint Rust
-   ruff check .       # Lint Python
-   ruff format .      # Format Python
-   mypy baselom_core  # Type check Python
+   uv run ruff check .       # Lint Python (with uv)
+   uv run ruff format .      # Format Python (with uv)
+   uv run mypy baselom_core  # Type check Python (with uv)
    ```
 
 6. **Commit changes**
@@ -220,39 +252,36 @@ cargo doc --open
 ### Python Build Commands
 
 ```bash
-# Development build (links to Rust library)
+# With uv (recommended)
+uv run maturin develop                    # Development build
+uv run maturin develop --release          # Dev build with release optimization
+uv run maturin build                      # Build wheel
+uv run maturin build --release            # Build release wheel
+uv run pytest                             # Run tests
+uv run pytest --cov=baselom_core --cov-report=html  # With coverage
+uv run pytest tests/test_engine.py::TestCountProcessing  # Specific test
+uv run mypy baselom_core                  # Type check
+uv run ruff check .                       # Lint
+uv run ruff check . --fix                 # Auto-fix
+uv run ruff format .                      # Format
+
+# With pip (alternative)
 maturin develop
-
-# Development build with release optimization
 maturin develop --release
-
-# Build wheel
 maturin build
-
-# Build release wheel
 maturin build --release
-
-# Run tests
 pytest
-
-# Run with coverage
 pytest --cov=baselom_core --cov-report=html
-
-# Run specific test
 pytest tests/test_engine.py::TestCountProcessing
-
-# Type check
 mypy baselom_core
-
-# Lint
 ruff check .
-ruff check . --fix  # Auto-fix
-
-# Format
+ruff check . --fix
 ruff format .
 ```
 
-### WASM Build Commands
+### WASM Build Commands (v0.2.0+)
+
+> **Note**: WASM support is planned for v0.2.0. These commands are for future reference.
 
 ```bash
 # Build for web (browser)
