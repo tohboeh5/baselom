@@ -25,15 +25,27 @@ run = "cargo build --target wasm32-unknown-unknown --features wasm --release"
 [tasks.build-wasm-dev]
 run = "cargo build --target wasm32-unknown-unknown --features wasm"
 
-# Testing
-[tasks.test]
-run = "cargo test && uv run pytest"
-
+# Testing - Individual test tasks
 [tasks.test-rust]
+description = "Run Rust unit tests"
 run = "cargo test"
 
 [tasks.test-python]
+description = "Run Python tests"
 run = "uv run pytest"
+
+[tasks.test-wasm]
+description = "Build and check WASM target compiles (tests not yet supported)"
+run = "cargo check --features wasm --target wasm32-unknown-unknown"
+
+# Testing - Combined tasks (like dev task pattern)
+[tasks.test]
+description = "Run all tests (Rust + Python)"
+depends = ["test-rust", "test-python"]
+
+[tasks.test-all]
+description = "Run all tests including WASM check"
+depends = ["test-rust", "test-python", "test-wasm"]
 
 # Linting and formatting
 [tasks.lint]
@@ -48,3 +60,8 @@ run = "uv run mypy baselom_core"
 # Check that code compiles for all targets
 [tasks.check-all]
 run = "cargo check && cargo check --features python && cargo check --features wasm --target wasm32-unknown-unknown"
+
+# Development workflow
+[tasks.dev]
+description = "Build and run all checks for development"
+depends = ["build", "lint", "test"]

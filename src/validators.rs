@@ -21,3 +21,55 @@ pub fn validate_state(state: &GameState) -> Result<(), BaselomError> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::Score;
+
+    fn create_test_state(inning: u8, outs: u8) -> GameState {
+        GameState {
+            inning,
+            top: true,
+            outs,
+            bases: (None, None, None),
+            score: Score::default(),
+            current_batter_id: None,
+            current_pitcher_id: None,
+        }
+    }
+
+    #[test]
+    fn test_valid_state() {
+        let state = create_test_state(1, 0);
+        assert!(validate_state(&state).is_ok());
+    }
+
+    #[test]
+    fn test_valid_state_max_outs() {
+        let state = create_test_state(1, 2);
+        assert!(validate_state(&state).is_ok());
+    }
+
+    #[test]
+    fn test_invalid_outs_too_many() {
+        let state = create_test_state(1, 3);
+        let result = validate_state(&state);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(BaselomError::ValidationError(_))));
+    }
+
+    #[test]
+    fn test_invalid_inning_zero() {
+        let state = create_test_state(0, 0);
+        let result = validate_state(&state);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(BaselomError::ValidationError(_))));
+    }
+
+    #[test]
+    fn test_valid_high_inning() {
+        let state = create_test_state(15, 1);
+        assert!(validate_state(&state).is_ok());
+    }
+}
