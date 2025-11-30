@@ -1,8 +1,8 @@
 # Baselom Core
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Rust](https://img.shields.io/badge/rust-1.83+-orange.svg)](https://www.rust-lang.org/)
 
 **Lightweight, pure game-state engine for baseball.**
 
@@ -37,11 +37,11 @@ Baselom Core implements inning progression, base/runner state, scoring, and subs
 # From PyPI (when published)
 pip install baselom-core
 
-# From source
+# From source (recommended: use mise)
 git clone https://github.com/tohboeh5/baselom.git
 cd baselom
-pip install maturin
-maturin develop
+mise install && mise run install
+mise run build
 ```
 
 ## 🚀 Quick Start
@@ -124,7 +124,9 @@ baselom/
 ├─ src/                    # Rust source
 │  ├─ lib.rs
 │  ├─ models.rs
-│  └─ engine.rs
+│  ├─ engine.rs
+│  ├─ validators.rs
+│  └─ errors.rs
 ├─ baselom_core/           # Python package
 │  ├─ __init__.py
 │  ├─ models.py
@@ -136,6 +138,7 @@ baselom/
 ├─ docs/                   # Specifications
 ├─ Cargo.toml
 ├─ pyproject.toml
+├─ mise.toml               # Development tasks
 └─ README.md
 ```
 
