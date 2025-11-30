@@ -35,33 +35,45 @@ description = "Run Python tests"
 run = "uv run pytest"
 
 [tasks.test-wasm]
-description = "Build and check WASM target compiles (tests not yet supported)"
+description = "Build and check WASM target compiles"
 run = "cargo check --features wasm --target wasm32-unknown-unknown"
 
-# Testing - Combined tasks (like dev task pattern)
+# Testing - Combined task (runs all tests including WASM)
 [tasks.test]
-description = "Run all tests (Rust + Python)"
-depends = ["test-rust", "test-python"]
-
-[tasks.test-all]
-description = "Run all tests including WASM check"
+description = "Run all tests (Rust + Python + WASM check)"
 depends = ["test-rust", "test-python", "test-wasm"]
 
-# Linting and formatting
+# Linting - All languages
+[tasks.lint-rust]
+description = "Lint Rust code"
+run = "cargo fmt --check && cargo clippy -- -D warnings"
+
+[tasks.lint-python]
+description = "Lint Python code"
+run = "uv run ruff check ."
+
 [tasks.lint]
-run = "cargo fmt --check && cargo clippy -- -D warnings && uv run ruff check ."
+description = "Lint all languages (Rust + Python)"
+depends = ["lint-rust", "lint-python"]
+
+# Formatting - All languages
+[tasks.format-rust]
+description = "Format Rust code"
+run = "cargo fmt"
+
+[tasks.format-python]
+description = "Format Python code"
+run = "uv run ruff format ."
 
 [tasks.format]
-run = "cargo fmt && uv run ruff format ."
+description = "Format all languages (Rust + Python)"
+depends = ["format-rust", "format-python"]
 
 [tasks.typecheck]
+description = "Type check Python code"
 run = "uv run mypy baselom_core"
 
 # Check that code compiles for all targets
 [tasks.check-all]
+description = "Check all targets compile (std, python, wasm)"
 run = "cargo check && cargo check --features python && cargo check --features wasm --target wasm32-unknown-unknown"
-
-# Development workflow
-[tasks.dev]
-description = "Build and run all checks for development"
-depends = ["build", "lint", "test"]
