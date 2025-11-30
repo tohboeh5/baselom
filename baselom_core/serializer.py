@@ -3,7 +3,7 @@
 import json
 from typing import Any
 
-from baselom_core.models import GameRules, GameState, Score
+from baselom_core.models import GameState, Score
 
 
 def serialize_state(state: GameState) -> str:

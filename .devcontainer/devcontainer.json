@@ -30,5 +30,5 @@
 	"remoteUser": "vscode",
 	"containerEnv": {},
 	"remoteEnv": { "MISE_EXPERIMENTAL": "1" },
-	"postAttachCommand": "eval \"$(mise activate bash --shims)\" >> ~/.bashrc && sudo chown -R vscode:vscode /workspace/.venv /workspace/target /home/vscode/.cargo && mise trust --non-interactive && mise install --yes && mise run install && pre-commit install"
+	"postAttachCommand": "eval \"$(mise activate bash --shims)\" >> ~/.bashrc && sudo chown -R vscode:vscode /workspace/.venv /workspace/target /home/vscode/.cargo && mise trust -- --non-interactive && mise install --yes && mise run install && pre-commit install"
 }

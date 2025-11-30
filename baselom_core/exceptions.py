@@ -13,5 +13,14 @@ class StateError(BaselomError):
     """Raised when an invalid state transition is attempted."""
 
 
-class RuleViolation(BaselomError):
-    """Raised when a rule constraint is violated."""
+class RuleViolationError(BaselomError):
+    """Raised when a rule constraint is violated.
+
+    Historically some parts of the code/docs referenced `RuleViolation` (without
+    the "Error" suffix). Keep an alias for backwards compatibility.
+    """
+
+
+# Backwards compatible alias for projects that reference ``RuleViolation`` in
+# docs or examples (Rust enum uses `RuleViolation`).
+RuleViolation = RuleViolationError
