@@ -1,0 +1,30 @@
+min_version = "2025.11.3"
+
+[env]
+_.python.venv = { path = ".venv" }
+
+[tools]
+python = "3.12"
+uv = "0.9.8"
+rust = "1.83.0"
+
+[tasks.install]
+run = "uv sync && rustup component add clippy rustfmt"
+
+[tasks.build]
+run = "uv run maturin develop"
+
+[tasks.build-release]
+run = "uv run maturin develop --release"
+
+[tasks.test]
+run = "cargo test && uv run pytest"
+
+[tasks.lint]
+run = "cargo fmt --check && cargo clippy -- -D warnings && uv run ruff check ."
+
+[tasks.format]
+run = "cargo fmt && uv run ruff format ."
+
+[tasks.typecheck]
+run = "uv run mypy baselom_core"
