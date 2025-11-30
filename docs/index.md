@@ -22,7 +22,8 @@ All implemented as an **immutable, testable Finite State Machine (FSM)**.
 | **Testability** | Fine-grained test coverage (>90% target) |
 | **Configurability** | Rules externalized via `GameRules` |
 | **Event-Oriented** | All plays output as JSON-serializable `Event` objects |
-| **High Performance** | Rust core with Python bindings (PyO3/maturin) |
+| **High Performance** | Rust core with multiple platform bindings |
+| **Multi-Platform** | WASM-first design enabling browser, Node.js, Python, and native execution |
 
 ## Documentation Index
 
@@ -60,17 +61,25 @@ All implemented as an **immutable, testable Finite State Machine (FSM)**.
 ### Installation
 
 ```bash
-# From PyPI (when published)
+# Python (from PyPI when published)
 pip install baselom-core
 
-# From source
+# Python (from source)
 git clone https://github.com/tohboeh5/baselom.git
 cd baselom
 pip install maturin
 maturin develop
+
+# JavaScript/TypeScript (from npm when published)
+npm install baselom-core
+
+# JavaScript/TypeScript (from source)
+wasm-pack build --target web
 ```
 
 ### Basic Usage
+
+#### Python
 
 ```python
 from baselom_core import initial_game_state, apply_pitch, GameRules
@@ -89,19 +98,48 @@ state, event = apply_pitch(state, 'strike_called', rules)
 state, event = apply_pitch(state, 'in_play', rules, batted_ball_result='single')
 ```
 
+#### JavaScript/TypeScript (WASM)
+
+```typescript
+import init, { GameState, GameRules, applyPitch } from 'baselom-core';
+
+// Initialize WASM module
+await init();
+
+// Initialize game
+const rules = new GameRules({ designatedHitter: false });
+const state = GameState.initial(
+  ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9'],
+  ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9'],
+  rules
+);
+
+// Process pitches
+const [newState, event] = applyPitch(state, 'ball', rules);
+console.log(event.toJSON());
+```
+
 ## Architecture Overview
+
+Baselom Core is designed as a **multi-platform library** with WASM support as a primary target:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Python API Layer                          │
-│  (baselom_core package - type hints, convenience APIs)       │
-└─────────────────────┬───────────────────────────────────────┘
-                      │ PyO3 Bindings
-┌─────────────────────▼───────────────────────────────────────┐
-│                    Rust Core Engine                          │
-│  (models, engine, validators - high-performance FSM)         │
+│                    Client Applications                       │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │   Python    │  │  Browser /  │  │    Node.js /        │  │
+│  │   (PyO3)    │  │  Web App    │  │    Native           │  │
+│  └──────┬──────┘  └──────┬──────┘  └──────────┬──────────┘  │
+└─────────┼────────────────┼───────────────────┼──────────────┘
+          │                │                   │
+          ▼                ▼                   ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Rust Core Engine (WASM-Compatible)              │
+│         (models, engine, validators - pure FSM)              │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+The core is intentionally designed without I/O or system dependencies, enabling seamless compilation to WebAssembly for browser and edge environments.
 
 For detailed architecture information, see [Architecture](./architecture.md).
 

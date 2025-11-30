@@ -2,9 +2,139 @@
 
 ## Overview
 
-Baselom Core is a Rust/Python hybrid library that implements a baseball game-state engine as an immutable Finite State Machine (FSM).
+Baselom Core is a **multi-platform Rust library** that implements a baseball game-state engine as an immutable Finite State Machine (FSM). The core is designed from the ground up to support multiple target platforms:
 
-## System Architecture
+- **Native** (Linux, macOS, Windows) - via direct Rust compilation
+- **Python** - via PyO3/maturin bindings
+- **WebAssembly (WASM)** - for browser and edge environments
+- **Future**: Mobile (iOS/Android), other language bindings
+
+## Multi-Platform Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              Client Applications                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐│
+│  │   Python    │  │  Browser/   │  │   Native    │  │   Node.js / Edge    ││
+│  │ Applications│  │   Web App   │  │   (CLI/GUI) │  │   Runtime           ││
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────────┬──────────┘│
+└─────────┼────────────────┼────────────────┼───────────────────┼───────────┘
+          │                │                │                   │
+          ▼                ▼                ▼                   ▼
+┌─────────────────┐ ┌─────────────────┐ ┌──────────────┐ ┌──────────────────┐
+│  Python Layer   │ │   WASM Module   │ │  Rust FFI    │ │   WASM Module    │
+│  (PyO3/maturin) │ │  (wasm-bindgen) │ │  (C ABI)     │ │  (wasm-bindgen)  │
+└────────┬────────┘ └────────┬────────┘ └──────┬───────┘ └────────┬─────────┘
+         │                   │                 │                  │
+         └───────────────────┴────────┬────────┴──────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      Rust Core Engine (Platform-Agnostic)                    │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────────┐  ┌───────────────┐  │
+│  │ models.rs   │  │ engine.rs    │  │ validators.rs  │  │ serializer.rs │  │
+│  │ (Data Types)│  │ (FSM Logic)  │  │ (State Check)  │  │ (JSON/Binary) │  │
+│  └─────────────┘  └──────────────┘  └────────────────┘  └───────────────┘  │
+│  ┌─────────────┐                                                            │
+│  │ errors.rs   │  ← No platform-specific dependencies                       │
+│  │ (Error Types)│                                                           │
+│  └─────────────┘                                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+## WASM-First Design Principles
+
+The architecture follows WASM-compatible design principles to ensure the core library can run in any environment:
+
+### 1. No Standard Library Dependencies (where possible)
+
+```rust
+// Core logic uses #![no_std] compatible patterns
+// Only alloc crate for heap allocation
+
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+
+#[cfg(not(feature = "std"))]
+use alloc::{string::String, vec::Vec};
+```
+
+### 2. No I/O or System Calls
+
+The core engine performs **no** I/O operations:
+- No file system access
+- No network calls
+- No system time (timestamps provided externally)
+- No threading primitives (pure single-threaded logic)
+
+### 3. Serialization-Based Communication
+
+All data exchange uses serializable formats:
+- JSON for human-readable interchange
+- Binary (MessagePack/bincode) for performance-critical paths
+- No raw pointers or platform-specific memory layouts
+
+### 4. Pure Functions
+
+All state transitions are pure functions:
+```rust
+// Input → Output, no side effects
+fn apply_pitch(state: &GameState, pitch: PitchResult, rules: &GameRules) 
+    -> Result<(GameState, Event), BaselomError>
+```
+
+## Platform-Specific Bindings
+
+### Python Bindings (PyO3)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Python API Layer                                   │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────────┐  ┌───────────────┐  │
+│  │ models.py   │  │ engine.py    │  │ validators.py  │  │ serializer.py │  │
+│  │ (Type Hints)│  │ (Wrappers)   │  │ (Validation)   │  │ (JSON I/O)    │  │
+│  └─────────────┘  └──────────────┘  └────────────────┘  └───────────────┘  │
+│  ┌─────────────┐                                                            │
+│  │exceptions.py│                                                            │
+│  │ (Errors)    │                                                            │
+│  └─────────────┘                                                            │
+└──────────────────────────────┬──────────────────────────────────────────────┘
+                               │ PyO3 FFI Bindings
+                               ▼
+                        [Rust Core Engine]
+```
+
+### WASM Bindings (wasm-bindgen)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        JavaScript/TypeScript API                             │
+│  ┌─────────────────┐  ┌──────────────────┐  ┌─────────────────────────────┐│
+│  │ baselom.d.ts    │  │ baselom.js       │  │ baselom_bg.wasm             ││
+│  │ (Type Defs)     │  │ (JS Glue Code)   │  │ (Compiled WASM Binary)      ││
+│  └─────────────────┘  └──────────────────┘  └─────────────────────────────┘│
+└──────────────────────────────┬──────────────────────────────────────────────┘
+                               │ wasm-bindgen
+                               ▼
+                        [Rust Core Engine]
+```
+
+### WASM Usage Example
+
+```typescript
+// Browser / Node.js
+import init, { GameState, GameRules, applyPitch } from 'baselom-core';
+
+await init(); // Initialize WASM module
+
+const rules = new GameRules({ designatedHitter: true });
+const state = GameState.initial(homeLineup, awayLineup, rules);
+
+const [newState, event] = applyPitch(state, 'ball', rules);
+console.log(event.toJSON());
+```
+
+## System Architecture (Legacy Python-focused view)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -280,14 +410,22 @@ The event system can be extended to include:
 
 ## Dependencies
 
-### Rust Dependencies
+### Rust Core Dependencies
 
-| Crate | Purpose |
-|-------|---------|
-| `pyo3` | Python bindings |
-| `serde` | Serialization |
-| `serde_json` | JSON support |
-| `thiserror` | Error handling |
+| Crate | Purpose | WASM Compatible |
+|-------|---------|-----------------|
+| `serde` | Serialization | ✅ Yes |
+| `serde_json` | JSON support | ✅ Yes |
+| `thiserror` | Error handling | ✅ Yes |
+
+### Platform-Specific Dependencies
+
+| Crate | Purpose | Platform |
+|-------|---------|----------|
+| `pyo3` | Python bindings | Native (Python) |
+| `wasm-bindgen` | WASM bindings | WebAssembly |
+| `js-sys` | JavaScript interop | WebAssembly |
+| `web-sys` | Web API access | WebAssembly (Browser) |
 
 ### Python Dependencies
 
@@ -296,6 +434,32 @@ The event system can be extended to include:
 | `maturin` | Build tool (dev) |
 | `pytest` | Testing (dev) |
 | `mypy` | Type checking (dev) |
+
+## Feature Flags
+
+The Rust core supports conditional compilation for different targets:
+
+```toml
+# Cargo.toml
+[features]
+default = ["std"]
+std = []           # Enable standard library (native builds)
+python = ["pyo3"]  # Enable Python bindings
+wasm = ["wasm-bindgen", "js-sys"]  # Enable WASM bindings
+```
+
+### Build Configurations
+
+```bash
+# Native build (default)
+cargo build --release
+
+# Python bindings
+maturin build --release
+
+# WASM build
+wasm-pack build --target web --release
+```
 
 ## See Also
 

@@ -75,6 +75,22 @@ cargo build
 cargo build --release
 ```
 
+### 5. Setup WASM Toolchain (Optional)
+
+```bash
+# Install wasm-pack
+curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+# Or via cargo
+cargo install wasm-pack
+
+# Add WASM target
+rustup target add wasm32-unknown-unknown
+
+# Verify installation
+wasm-pack --version
+```
+
 ## Project Structure
 
 ```
@@ -234,6 +250,53 @@ ruff check . --fix  # Auto-fix
 
 # Format
 ruff format .
+```
+
+### WASM Build Commands
+
+```bash
+# Build for web (browser)
+wasm-pack build --target web --release
+
+# Build for Node.js
+wasm-pack build --target nodejs --release
+
+# Build for bundlers (webpack, etc.)
+wasm-pack build --target bundler --release
+
+# Build with specific features
+wasm-pack build --target web --release -- --features wasm
+
+# Test WASM build
+wasm-pack test --headless --chrome
+
+# Output location: pkg/
+# Contains:
+#   - baselom_core.js      (JavaScript glue code)
+#   - baselom_core_bg.wasm (Compiled WASM binary)
+#   - baselom_core.d.ts    (TypeScript definitions)
+#   - package.json         (npm package config)
+```
+
+### Using WASM Build
+
+```html
+<!-- Browser usage -->
+<script type="module">
+  import init, { GameState, applyPitch } from './pkg/baselom_core.js';
+  
+  async function run() {
+    await init();
+    // Use the library
+    const state = GameState.initial(...);
+  }
+  run();
+</script>
+```
+
+```javascript
+// Node.js usage
+const { GameState, applyPitch } = require('./pkg/baselom_core.js');
 ```
 
 ## Debugging
