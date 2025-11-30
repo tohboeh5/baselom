@@ -35,10 +35,11 @@ Before implementing any new feature, verify:
 ### Development Workflow
 
 ```bash
-# Always run all targets to catch platform-specific issues early
-mise run check-all    # Verify std, python, and wasm all compile
-mise run test         # Run Rust + Python tests + WASM check
-mise run lint         # Lint all languages
+# Local development: Always run all targets to catch platform-specific issues early
+mise run format       # Format all code (Rust + Python)
+mise run lint         # Lint all code (format check + clippy + ruff)
+mise run test         # Run all tests (Rust + Python + WASM check)
+mise run check-all    # Verify std, python, and wasm all compile (optional, for thorough check)
 ```
 
 ### Code Organization
@@ -74,11 +75,11 @@ pub fn calculate_score(state: &GameState) -> Score {
 
 ### CI Validation
 
-Every push and PR automatically runs:
-- `mise run lint` - Format and lint check for Rust and Python
-- `mise run test` - All tests including WASM compilation check
+Every push and PR automatically runs two CI jobs:
+1. **Lint job**: `mise run lint` - Format check + clippy + ruff
+2. **Test job**: `mise run test` - Rust tests + Python tests + WASM compilation check
 
-This ensures platform compatibility is verified on every commit.
+This ensures platform compatibility is verified on every commit. The WASM check in `mise run test` catches any code that would break WASM compilation.
 
 ## Prerequisites
 
