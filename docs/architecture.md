@@ -79,8 +79,11 @@ All data exchange uses serializable formats:
 All state transitions are pure functions:
 ```rust
 // Input → Output, no side effects
-fn apply_pitch(state: &GameState, pitch: PitchResult, rules: &GameRules) 
-    -> Result<(GameState, Event), BaselomError>
+fn apply_pitch(
+    state: &GameState,
+    pitch: PitchResult,
+    rules: &GameRules
+) -> Result<(GameState, Event), BaselomError>
 ```
 
 ## Platform-Specific Bindings
@@ -123,15 +126,15 @@ fn apply_pitch(state: &GameState, pitch: PitchResult, rules: &GameRules)
 
 ```typescript
 // Browser / Node.js
-import init, { GameState, GameRules, applyPitch } from 'baselom-core';
+import init, { initialGameState, GameRules, applyPitch } from 'baselom-core';
 
 await init(); // Initialize WASM module
 
 const rules = new GameRules({ designatedHitter: true });
-const state = GameState.initial(homeLineup, awayLineup, rules);
+const state = initialGameState(homeLineup, awayLineup, rules);
 
 const [newState, event] = applyPitch(state, 'ball', rules);
-console.log(event.toJSON());
+console.log(JSON.stringify(event));
 ```
 
 ## System Architecture (Legacy Python-focused view)

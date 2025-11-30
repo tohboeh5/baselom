@@ -283,12 +283,20 @@ wasm-pack test --headless --chrome
 ```html
 <!-- Browser usage -->
 <script type="module">
-  import init, { GameState, applyPitch } from './pkg/baselom_core.js';
+  import init, { initialGameState, applyPitch, GameRules } from './pkg/baselom_core.js';
   
   async function run() {
     await init();
-    // Use the library
-    const state = GameState.initial(...);
+    
+    const rules = new GameRules({ designatedHitter: false });
+    const state = initialGameState(
+      ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9'],
+      ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9'],
+      rules
+    );
+    
+    const [newState, event] = applyPitch(state, 'ball', rules);
+    console.log(event);
   }
   run();
 </script>
@@ -296,7 +304,17 @@ wasm-pack test --headless --chrome
 
 ```javascript
 // Node.js usage
-const { GameState, applyPitch } = require('./pkg/baselom_core.js');
+const { initialGameState, applyPitch, GameRules } = require('./pkg/baselom_core.js');
+
+const rules = new GameRules({ designatedHitter: false });
+const state = initialGameState(
+  ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9'],
+  ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9'],
+  rules
+);
+
+const [newState, event] = applyPitch(state, 'ball', rules);
+console.log(event);
 ```
 
 ## Debugging

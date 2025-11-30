@@ -101,14 +101,14 @@ state, event = apply_pitch(state, 'in_play', rules, batted_ball_result='single')
 #### JavaScript/TypeScript (WASM)
 
 ```typescript
-import init, { GameState, GameRules, applyPitch } from 'baselom-core';
+import init, { initialGameState, applyPitch, GameRules } from 'baselom-core';
 
 // Initialize WASM module
 await init();
 
-// Initialize game
+// Initialize game (API mirrors Python for consistency)
 const rules = new GameRules({ designatedHitter: false });
-const state = GameState.initial(
+const state = initialGameState(
   ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9'],
   ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9'],
   rules
@@ -116,7 +116,7 @@ const state = GameState.initial(
 
 // Process pitches
 const [newState, event] = applyPitch(state, 'ball', rules);
-console.log(event.toJSON());
+console.log(JSON.stringify(event));
 ```
 
 ## Architecture Overview
