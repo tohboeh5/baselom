@@ -6,6 +6,80 @@ This guide covers setting up a development environment, building the project, an
 
 > **Initial Release**: The first release (v0.1.0) is a Python library built with PyO3 and maturin. WASM support is planned for v0.2.0.
 
+## WASM-Compatible Development Rules
+
+**Important**: Follow these rules to ensure Rust code works seamlessly across Python, WASM, and native targets without refactoring.
+
+### Core Principles
+
+1. **Keep core logic platform-agnostic**: All game state logic lives in the core Rust modules (`models.rs`, `engine.rs`, `validators.rs`, `errors.rs`) without any platform-specific dependencies.
+
+2. **Use feature flags for bindings only**: Platform-specific code (PyO3, wasm-bindgen) is conditionally compiled via feature flags. Core logic should never depend on these features.
+
+3. **No I/O in core**: The core engine performs no I/O operations (file system, network, system time). All external data must be passed in as function arguments.
+
+4. **Pure functions**: All state transitions are pure functions: `(State, Input) → (NewState, Event)`. No side effects.
+
+5. **Serialization-friendly types**: Use types that serialize cleanly to JSON (the common interchange format for all platforms).
+
+### Checklist Before Adding New Code
+
+Before implementing any new feature, verify:
+
+- [ ] Does the code use only `serde`, `serde_json`, and `thiserror` dependencies? (These are WASM-compatible)
+- [ ] Is the code free of `std::fs`, `std::net`, `std::time::SystemTime`?
+- [ ] Are all public types `Serialize + Deserialize`?
+- [ ] Does the function have no side effects (pure function)?
+- [ ] Can the types be represented in both Python (via PyO3) and JavaScript (via wasm-bindgen)?
+
+### Development Workflow
+
+```bash
+# Always run all targets to catch platform-specific issues early
+mise run check-all    # Verify std, python, and wasm all compile
+mise run test         # Run Rust + Python tests + WASM check
+mise run lint         # Lint all languages
+```
+
+### Code Organization
+
+```
+src/
+├── lib.rs           # Entry point with conditional platform bindings
+├── models.rs        # Core data types (platform-agnostic)
+├── engine.rs        # FSM logic (platform-agnostic)
+├── validators.rs    # State validation (platform-agnostic)
+└── errors.rs        # Error types (platform-agnostic)
+```
+
+- **Core modules** (`models.rs`, `engine.rs`, etc.): No `#[cfg]` attributes, no platform imports
+- **lib.rs**: Contains `#[cfg(feature = "python")]` and `#[cfg(feature = "wasm")]` sections for bindings
+
+### Example: Adding a New Function
+
+```rust
+// ✅ Good: Platform-agnostic core function
+pub fn calculate_score(state: &GameState) -> Score {
+    // Pure logic, no I/O, no platform dependencies
+    Score { home: state.runs_home, away: state.runs_away }
+}
+
+// ❌ Bad: Platform-specific in core
+pub fn calculate_score(state: &GameState) -> Score {
+    println!("Calculating..."); // I/O side effect
+    let now = std::time::SystemTime::now(); // System call
+    // ...
+}
+```
+
+### CI Validation
+
+Every push and PR automatically runs:
+- `mise run lint` - Format and lint check for Rust and Python
+- `mise run test` - All tests including WASM compilation check
+
+This ensures platform compatibility is verified on every commit.
+
 ## Prerequisites
 
 ### Required Software
