@@ -32,7 +32,7 @@ lto = true
 opt-level = 3
 
 # Feature flags for conditional compilation
-# See: docs/architecture.md#feature-flags
+# See: docs/architecture.md "Feature Flags" section
 [features]
 default = ["std"]
 std = []                                  # Enable standard library (native builds)

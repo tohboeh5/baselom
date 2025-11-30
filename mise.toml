@@ -9,7 +9,7 @@ uv = "0.9.8"
 rust = "1.83.0"
 
 [tasks.install]
-run = "uv sync && rustup component add clippy rustfmt && rustup target add wasm32-unknown-unknown"
+run = "uv sync && (rustup component add clippy rustfmt || true) && (rustup target add wasm32-unknown-unknown || true)"
 
 # Python build tasks (v0.1.0)
 [tasks.build]
