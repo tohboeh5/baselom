@@ -1,10 +1,33 @@
 # Development Guide
 
-## Overview
+## Quick Start with mise
 
-This guide covers setting up a development environment, building the project, and contributing to Baselom Core.
+**Recommended**: Use [mise](https://mise.jdx.dev/) for consistent development environment.
 
-> **Initial Release**: The first release (v0.1.0) is a Python library built with PyO3 and maturin. WASM support is planned for v0.2.0.
+```bash
+# Clone and setup
+git clone https://github.com/tohboeh5/baselom.git
+cd baselom
+mise install       # Install Python, Rust, uv
+mise run install   # Install dependencies + WASM target
+```
+
+### Daily Development Commands
+
+```bash
+mise run format    # Format all code (Rust + Python)
+mise run lint      # Lint all code (format check + clippy + ruff)
+mise run test      # Run all tests (Rust + Python + WASM check)
+mise run build     # Build Python bindings for development
+```
+
+### Pre-commit Hooks
+
+Pre-commit hooks automatically run `format` and `lint` on every commit:
+
+```bash
+pre-commit install  # Already done in devcontainer
+```
 
 ## WASM-Compatible Development Rules
 
@@ -31,16 +54,6 @@ Before implementing any new feature, verify:
 - [ ] Are all public types `Serialize + Deserialize`?
 - [ ] Does the function have no side effects (pure function)?
 - [ ] Can the types be represented in both Python (via PyO3) and JavaScript (via wasm-bindgen)?
-
-### Development Workflow
-
-```bash
-# Local development: Always run all targets to catch platform-specific issues early
-mise run format       # Format all code (Rust + Python)
-mise run lint         # Lint all code (format check + clippy + ruff)
-mise run test         # Run all tests (Rust + Python + WASM check)
-mise run check-all    # Verify std, python, and wasm all compile (optional, for thorough check)
-```
 
 ### Code Organization
 
@@ -73,652 +86,55 @@ pub fn calculate_score(state: &GameState) -> Score {
 }
 ```
 
-### CI Validation
+## CI/CD
 
-Every push and PR automatically runs two CI jobs:
+Every push and PR automatically runs:
 1. **Lint job**: `mise run lint` - Format check + clippy + ruff
 2. **Test job**: `mise run test` - Rust tests + Python tests + WASM compilation check
 
-This ensures platform compatibility is verified on every commit. The WASM check in `mise run test` catches any code that would break WASM compilation.
+This ensures platform compatibility is verified on every commit.
 
-## Prerequisites
+## Available mise Tasks
 
-### Required Software
+| Task | Description |
+|------|-------------|
+| `mise run install` | Install all dependencies |
+| `mise run format` | Format Rust + Python code |
+| `mise run lint` | Lint all code (includes format check) |
+| `mise run test` | Run all tests (Rust + Python + WASM check) |
+| `mise run build` | Build Python bindings (development) |
+| `mise run build-release` | Build Python bindings (release) |
+| `mise run build-wasm` | Build WASM target |
+| `mise run check-all` | Verify all targets compile |
 
-| Software | Version | Purpose |
-|----------|---------|---------|
-| Python | 3.9+ | Python runtime and tests |
-| Rust | 1.70+ | Core engine development |
-| uv | 0.4+ | Python project management (recommended) |
-| Git | 2.0+ | Version control |
-
-### Recommended Tools
-
-| Tool | Purpose |
-|------|---------|
-| VS Code | IDE with Rust and Python support |
-| rust-analyzer | Rust language server |
-| Pylance | Python language server |
-| ruff | Python linting |
-
-## Environment Setup
-
-### 1. Clone Repository
+### Individual Tasks
 
 ```bash
-git clone https://github.com/tohboeh5/baselom.git
-cd baselom
+mise run format-rust     # Format Rust only
+mise run format-python   # Format Python only
+mise run lint-rust       # Lint Rust only
+mise run lint-python     # Lint Python only
+mise run test-rust       # Test Rust only
+mise run test-python     # Test Python only
+mise run test-wasm       # WASM compilation check
 ```
 
-### 2. Setup Rust
-
-```bash
-# Install Rust via rustup
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# Verify installation
-rustc --version
-cargo --version
-
-# Install additional components
-rustup component add clippy rustfmt
-```
-
-### 3. Setup Python with uv (Recommended)
-
-[uv](https://docs.astral.sh/uv/) is the recommended Python project manager for Baselom development.
-
-```bash
-# Install uv
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Or via pip
-pip install uv
-
-# Or via Homebrew (macOS)
-brew install uv
-
-# Verify installation
-uv --version
-
-# Sync project dependencies (creates .venv automatically)
-uv sync
-
-# Activate virtual environment (optional - uv run handles this)
-source .venv/bin/activate  # Linux/macOS
-# or: .venv\Scripts\activate  # Windows
-```
-
-### 3b. Setup Python with pip (Alternative)
-
-If you prefer traditional pip-based setup:
-
-```bash
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # Linux/macOS
-# or: .venv\Scripts\activate  # Windows
-
-# Install development dependencies
-pip install maturin pytest pytest-cov mypy ruff
-```
-
-### 4. Build the Project
-
-```bash
-# With uv (recommended)
-uv run maturin develop
-
-# With pip
-maturin develop
-
-# Release build
-maturin build --release
-
-# Rust only
-cargo build
-cargo build --release
-```
-
-### 5. Setup WASM Toolchain (Optional - for v0.2.0+)
-
-```bash
-# Install wasm-pack
-curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-
-# Or via cargo
-cargo install wasm-pack
-
-# Add WASM target
-rustup target add wasm32-unknown-unknown
-
-# Verify installation
-wasm-pack --version
-```
-
-## Project Structure
-
-```
-baselom/
-├── src/                      # Rust source code
-│   ├── lib.rs               # Module entry point, PyO3 exports
-│   ├── models.rs            # Data structures
-│   ├── engine.rs            # FSM logic
-│   ├── validators.rs        # State validation
-│   └── errors.rs            # Error types
-├── baselom_core/            # Python package
-│   ├── __init__.py          # Package exports
-│   ├── models.py            # Python type hints
-│   ├── engine.py            # Python wrappers
-│   ├── validators.py        # Python validation
-│   ├── serializer.py        # JSON handling
-│   └── exceptions.py        # Exception classes
-├── tests/                   # Test files
-│   ├── conftest.py          # Pytest fixtures
-│   ├── test_models.py       # Model tests
-│   ├── test_engine.py       # Engine tests
-│   ├── test_serialization.py
-│   └── fixtures/            # Test data
-├── docs/                    # Documentation
-├── Cargo.toml               # Rust dependencies
-├── pyproject.toml           # Python project config
-└── README.md
-```
-
-## Development Workflow
-
-### Making Changes
-
-1. **Create a feature branch**
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-
-2. **Make changes** to Rust and/or Python code
-
-3. **Rebuild**
-   ```bash
-   uv run maturin develop  # With uv
-   # or: maturin develop   # With pip
-   ```
-
-4. **Run tests**
-   ```bash
-   cargo test                 # Rust tests
-   uv run pytest              # Python tests (with uv)
-   # or: pytest               # Python tests (with pip)
-   ```
-
-5. **Lint and format**
-   ```bash
-   cargo fmt          # Format Rust
-   cargo clippy       # Lint Rust
-   uv run ruff check .       # Lint Python (with uv)
-   uv run ruff format .      # Format Python (with uv)
-   uv run mypy baselom_core  # Type check Python (with uv)
-   ```
-
-6. **Commit changes**
-   ```bash
-   git add .
-   git commit -m "feat: description of changes"
-   ```
-
-### Commit Message Format
+## Commit Message Format
 
 Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
 type(scope): description
-
-[optional body]
-
-[optional footer]
 ```
 
-Types:
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation only
-- `style`: Code style (formatting, etc.)
-- `refactor`: Code refactoring
-- `perf`: Performance improvement
-- `test`: Adding tests
-- `chore`: Maintenance tasks
+Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`
 
-Examples:
-```
-feat(engine): add support for extra innings tiebreaker
-fix(validation): handle edge case with empty lineup
-docs(api): update apply_pitch documentation
-test(scenarios): add walkoff home run test
-```
-
-## Building and Testing
-
-### Rust Build Commands
-
-```bash
-# Debug build
-cargo build
-
-# Release build
-cargo build --release
-
-# Check without building
-cargo check
-
-# Run tests
-cargo test
-
-# Run specific test
-cargo test test_name
-
-# Run tests with output
-cargo test -- --nocapture
-
-# Run benchmarks
-cargo bench
-
-# Generate docs
-cargo doc --open
-```
-
-### Python Build Commands
-
-```bash
-# With uv (recommended)
-uv run maturin develop                    # Development build
-uv run maturin develop --release          # Dev build with release optimization
-uv run maturin build                      # Build wheel
-uv run maturin build --release            # Build release wheel
-uv run pytest                             # Run tests
-uv run pytest --cov=baselom_core --cov-report=html  # With coverage
-uv run pytest tests/test_engine.py::TestCountProcessing  # Specific test
-uv run mypy baselom_core                  # Type check
-uv run ruff check .                       # Lint
-uv run ruff check . --fix                 # Auto-fix
-uv run ruff format .                      # Format
-
-# With pip (alternative)
-maturin develop
-maturin develop --release
-maturin build
-maturin build --release
-pytest
-pytest --cov=baselom_core --cov-report=html
-pytest tests/test_engine.py::TestCountProcessing
-mypy baselom_core
-ruff check .
-ruff check . --fix
-ruff format .
-```
-
-### WASM Build Commands (v0.2.0+)
-
-> **Note**: WASM support is planned for v0.2.0. These commands are for future reference.
-
-```bash
-# Build for web (browser)
-wasm-pack build --target web --release
-
-# Build for Node.js
-wasm-pack build --target nodejs --release
-
-# Build for bundlers (webpack, etc.)
-wasm-pack build --target bundler --release
-
-# Build with specific features
-wasm-pack build --target web --release -- --features wasm
-
-# Test WASM build
-wasm-pack test --headless --chrome
-
-# Output location: pkg/
-# Contains:
-#   - baselom_core.js      (JavaScript glue code)
-#   - baselom_core_bg.wasm (Compiled WASM binary)
-#   - baselom_core.d.ts    (TypeScript definitions)
-#   - package.json         (npm package config)
-```
-
-### Using WASM Build
-
-```html
-<!-- Browser usage -->
-<script type="module">
-  import init, { initialGameState, applyPitch, GameRules } from './pkg/baselom_core.js';
-  
-  async function run() {
-    await init();
-    
-    const rules = new GameRules({ designatedHitter: false });
-    const state = initialGameState(
-      ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9'],
-      ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9'],
-      rules
-    );
-    
-    const [newState, event] = applyPitch(state, 'ball', rules);
-    console.log(event);
-  }
-  run();
-</script>
-```
-
-```javascript
-// Node.js usage
-const { initialGameState, applyPitch, GameRules } = require('./pkg/baselom_core.js');
-
-const rules = new GameRules({ designatedHitter: false });
-const state = initialGameState(
-  ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9'],
-  ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9'],
-  rules
-);
-
-const [newState, event] = applyPitch(state, 'ball', rules);
-console.log(event);
-```
-
-## Debugging
-
-### Rust Debugging
-
-#### Using println!
-
-```rust
-fn apply_pitch_impl(state: &GameState, pitch: PitchResult) -> Result<...> {
-    println!("Current state: {:?}", state);
-    println!("Pitch result: {:?}", pitch);
-    // ...
-}
-```
-
-#### Using VS Code
-
-1. Install "CodeLLDB" extension
-2. Add launch configuration:
-   ```json
-   {
-     "type": "lldb",
-     "request": "launch",
-     "name": "Debug Rust Tests",
-     "cargo": {
-       "args": ["test", "--no-run"]
-     },
-     "program": "${workspaceFolder}/target/debug/deps/baselom_core-xxxxx"
-   }
-   ```
-
-### Python Debugging
-
-#### Using pdb
-
-```python
-import pdb
-
-def test_something():
-    state = initial_game_state(...)
-    pdb.set_trace()  # Breakpoint
-    result = apply_pitch(state, 'ball', rules)
-```
-
-#### Using VS Code
-
-1. Install "Python" extension
-2. Add launch configuration:
-   ```json
-   {
-     "type": "python",
-     "request": "launch",
-     "name": "Debug Tests",
-     "module": "pytest",
-     "args": ["tests/test_engine.py", "-v"]
-   }
-   ```
-
-### Troubleshooting
-
-#### Build Errors
-
-**Problem**: `maturin develop` fails with "could not compile"
-
-**Solution**:
-```bash
-# Clean and rebuild
-cargo clean
-maturin develop
-```
-
-**Problem**: Import error after rebuild
-
-**Solution**:
-```bash
-# Ensure virtual environment is active
-source .venv/bin/activate
-# Reinstall
-maturin develop
-```
-
-#### Test Failures
-
-**Problem**: Tests pass locally but fail in CI
-
-**Solution**:
-- Check Python version matches CI
-- Ensure all dependencies are in `pyproject.toml`
-- Check for platform-specific code
-
-## CI/CD Pipeline
-
-### GitHub Actions Workflow
-
-```yaml
-# .github/workflows/ci.yml
-name: CI
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          components: clippy, rustfmt
-      
-      - name: Rust format check
-        run: cargo fmt --check
-      
-      - name: Rust lint
-        run: cargo clippy -- -D warnings
-      
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-      
-      - name: Python lint
-        run: |
-          pip install ruff mypy
-          ruff check .
-          mypy baselom_core
-
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ['3.9', '3.10', '3.11', '3.12']
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-      
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-      
-      - name: Install dependencies
-        run: |
-          pip install maturin pytest pytest-cov
-          maturin develop
-      
-      - name: Rust tests
-        run: cargo test
-      
-      - name: Python tests
-        run: pytest --cov=baselom_core --cov-fail-under=90
-
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-      
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-      
-      - name: Build wheel
-        run: |
-          pip install maturin
-          maturin build --release
-      
-      - name: Upload wheel
-        uses: actions/upload-artifact@v3
-        with:
-          name: wheels-${{ matrix.os }}
-          path: target/wheels/*.whl
-```
-
-## Release Process
-
-### Version Bumping
-
-1. Update version in `Cargo.toml`:
-   ```toml
-   [package]
-   version = "0.2.0"
-   ```
-
-2. Update version in `pyproject.toml`:
-   ```toml
-   [project]
-   version = "0.2.0"
-   ```
-
-3. Update `CHANGELOG.md`
-
-4. Create tag:
-   ```bash
-   git tag v0.2.0
-   git push origin v0.2.0
-   ```
-
-### Publishing
-
-```bash
-# Build wheels for all platforms (via CI)
-# Then publish to PyPI
-maturin publish
-
-# Or via twine
-twine upload target/wheels/*.whl
-```
-
-## Code Style Guide
-
-### Rust Style
-
-- Follow [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/)
-- Use `cargo fmt` for formatting
-- Use `cargo clippy` for linting
-- Document all public items with `///` comments
-
-```rust
-/// Applies a pitch result to the game state.
-///
-/// # Arguments
-///
-/// * `state` - Current game state
-/// * `pitch` - The pitch result
-/// * `rules` - Game rules configuration
-///
-/// # Returns
-///
-/// Tuple of (new state, event) or error
-///
-/// # Examples
-///
-/// ```
-/// let (new_state, event) = apply_pitch(&state, PitchResult::Ball, &rules)?;
-/// ```
-pub fn apply_pitch(
-    state: &GameState,
-    pitch: PitchResult,
-    rules: &GameRules,
-) -> Result<(GameState, Event), BaselomError> {
-    // Implementation
-}
-```
-
-### Python Style
-
-- Follow [PEP 8](https://peps.python.org/pep-0008/)
-- Use type hints everywhere
-- Document with docstrings (Google style)
-
-```python
-def apply_pitch(
-    state: GameState,
-    pitch_result: str,
-    rules: GameRules,
-) -> tuple[GameState, Event]:
-    """Apply a pitch result to the game state.
-
-    Args:
-        state: Current game state.
-        pitch_result: The pitch outcome ('ball', 'strike', etc.).
-        rules: Game rules configuration.
-
-    Returns:
-        Tuple of (new_state, event).
-
-    Raises:
-        ValidationError: If inputs are invalid.
-        StateError: If game has ended.
-
-    Example:
-        >>> new_state, event = apply_pitch(state, 'ball', rules)
-        >>> assert new_state.balls == state.balls + 1
-    """
-    # Implementation
-```
+Example: `feat(engine): add support for extra innings tiebreaker`
 
 ## See Also
 
-- [Architecture](./architecture.md) - System design
-- [Testing](./testing.md) - Test strategy
-- [API Reference](./api-reference.md) - Public API
+- [Architecture](./architecture.md) - System design and multi-platform strategy
+- [Data Models](./data-models.md) - Core data structures
+- [API Reference](./api-reference.md) - Public API documentation
+- [Testing](./testing.md) - Test strategy and coverage
 - [Versioning](./versioning.md) - Version policy

@@ -4,6 +4,8 @@
 
 **IMPORTANT**: Always run lint, format, and test commands before committing any changes.
 
+For full development setup and WASM-compatible coding rules, see [Development Guide](../docs/development.md).
+
 ### Required Commands
 
 Before every commit or PR, run these commands:

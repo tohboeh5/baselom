@@ -155,13 +155,18 @@ Full specifications available in [`docs/`](./docs/):
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read the development guide in `docs/development.md` before submitting PRs.
+Contributions are welcome! See the [Development Guide](./docs/development.md) for:
+- Quick setup with mise
+- WASM-compatible development rules
+- Available commands (`mise run format`, `lint`, `test`)
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes with tests
-4. Run `pytest` and `cargo test`
-5. Submit a pull request
+```bash
+# Quick start
+git clone https://github.com/tohboeh5/baselom.git
+cd baselom
+mise install && mise run install
+mise run test  # Run all tests
+```
 
 ## 📄 License
 
