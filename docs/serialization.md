@@ -655,6 +655,327 @@ binary_data = serialize_state_binary(game_state)
 game_state = deserialize_state_binary(binary_data)
 ```
 
+---
+
+## Multi-Game Archive Format
+
+Baselom provides a native JSON format for storing multiple games with full metadata, statistics, and event history.
+
+### Archive JSON Schema
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MultiGameArchive",
+  "type": "object",
+  "required": ["archive_id", "name", "games", "baselom_version"],
+  "properties": {
+    "archive_id": {
+      "type": "string",
+      "description": "Unique archive identifier"
+    },
+    "name": {
+      "type": "string",
+      "description": "Archive name"
+    },
+    "description": {
+      "type": "string",
+      "description": "Archive description"
+    },
+    "games": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/GameRecord"}
+    },
+    "rosters": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/definitions/Roster"}
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "baselom_version": {
+      "type": "string",
+      "description": "Baselom version used to create archive"
+    }
+  }
+}
+```
+
+### GameRecord JSON Schema
+
+```json
+{
+  "title": "GameRecord",
+  "type": "object",
+  "required": ["game_id", "date", "home_team", "away_team", "final_state"],
+  "properties": {
+    "game_id": {"type": "string"},
+    "date": {"type": "string", "format": "date"},
+    "home_team": {"type": "string"},
+    "away_team": {"type": "string"},
+    "final_state": {"$ref": "#/definitions/GameState"},
+    "events": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/Event"}
+    },
+    "player_stats": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/GamePlayerStats"}
+    },
+    "substitutions": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/SubstitutionRecord"}
+    },
+    "rules": {"$ref": "#/definitions/GameRules"},
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "venue": {"type": "string"},
+        "attendance": {"type": "integer"},
+        "weather": {"type": "string"},
+        "duration_minutes": {"type": "integer"},
+        "umpires": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    }
+  }
+}
+```
+
+### Player Statistics JSON Schema
+
+```json
+{
+  "title": "GamePlayerStats",
+  "type": "object",
+  "required": ["player_id", "game_id", "team"],
+  "properties": {
+    "player_id": {"type": "string"},
+    "game_id": {"type": "string"},
+    "team": {"enum": ["home", "away"]},
+    "started": {"type": "boolean"},
+    "entered_game": {"type": "boolean"},
+    "batting_order": {"type": ["integer", "null"]},
+    "batting": {
+      "type": "object",
+      "properties": {
+        "plate_appearances": {"type": "integer"},
+        "at_bats": {"type": "integer"},
+        "hits": {"type": "integer"},
+        "singles": {"type": "integer"},
+        "doubles": {"type": "integer"},
+        "triples": {"type": "integer"},
+        "home_runs": {"type": "integer"},
+        "runs": {"type": "integer"},
+        "rbi": {"type": "integer"},
+        "walks": {"type": "integer"},
+        "strikeouts": {"type": "integer"},
+        "hit_by_pitch": {"type": "integer"}
+      }
+    },
+    "pitching": {
+      "type": ["object", "null"],
+      "properties": {
+        "innings_pitched": {"type": "number"},
+        "hits_allowed": {"type": "integer"},
+        "runs_allowed": {"type": "integer"},
+        "earned_runs": {"type": "integer"},
+        "walks_allowed": {"type": "integer"},
+        "strikeouts": {"type": "integer"},
+        "home_runs_allowed": {"type": "integer"},
+        "pitches_thrown": {"type": "integer"},
+        "win": {"type": "boolean"},
+        "loss": {"type": "boolean"},
+        "save": {"type": "boolean"}
+      }
+    }
+  }
+}
+```
+
+### Roster JSON Schema
+
+```json
+{
+  "title": "Roster",
+  "type": "object",
+  "required": ["team_id", "team_name", "players"],
+  "properties": {
+    "team_id": {"type": "string"},
+    "team_name": {"type": "string"},
+    "players": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["player_id", "name"],
+        "properties": {
+          "player_id": {"type": "string"},
+          "name": {"type": "string"},
+          "number": {"type": ["integer", "null"]},
+          "positions": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "bats": {"enum": ["L", "R", "S"]},
+          "throws": {"enum": ["L", "R"]},
+          "status": {
+            "enum": ["active", "bench", "injured", "inactive"]
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### Complete Archive Example
+
+```json
+{
+  "archive_id": "season_2024",
+  "name": "2024 Regular Season",
+  "description": "Complete record of 2024 regular season games",
+  "baselom_version": "1.0.0",
+  "created_at": "2024-04-01T00:00:00Z",
+  "updated_at": "2024-10-01T23:59:59Z",
+  "rosters": {
+    "tigers": {
+      "team_id": "tigers",
+      "team_name": "Tigers",
+      "players": [
+        {
+          "player_id": "smith_42",
+          "name": "John Smith",
+          "number": 42,
+          "positions": ["1B", "OF"],
+          "bats": "R",
+          "throws": "R",
+          "status": "active"
+        },
+        {
+          "player_id": "johnson_17",
+          "name": "Mike Johnson",
+          "number": 17,
+          "positions": ["P"],
+          "bats": "L",
+          "throws": "L",
+          "status": "active"
+        }
+      ]
+    },
+    "eagles": {
+      "team_id": "eagles",
+      "team_name": "Eagles",
+      "players": []
+    }
+  },
+  "games": [
+    {
+      "game_id": "game_001",
+      "date": "2024-04-01",
+      "home_team": "tigers",
+      "away_team": "eagles",
+      "final_state": {
+        "inning": 9,
+        "top": true,
+        "outs": 3,
+        "score": {"home": 5, "away": 3},
+        "game_status": "final"
+      },
+      "events": [],
+      "player_stats": [
+        {
+          "player_id": "smith_42",
+          "game_id": "game_001",
+          "team": "home",
+          "started": true,
+          "batting_order": 3,
+          "batting": {
+            "plate_appearances": 4,
+            "at_bats": 4,
+            "hits": 2,
+            "singles": 1,
+            "doubles": 1,
+            "triples": 0,
+            "home_runs": 0,
+            "runs": 1,
+            "rbi": 2,
+            "walks": 0,
+            "strikeouts": 1
+          }
+        }
+      ],
+      "substitutions": [
+        {
+          "game_id": "game_001",
+          "inning": 7,
+          "top": true,
+          "team": "home",
+          "player_out_id": "starter_p",
+          "player_in_id": "reliever_1",
+          "position": "P",
+          "batting_order": 8,
+          "timestamp": "2024-04-01T21:30:00Z"
+        }
+      ],
+      "rules": {
+        "designated_hitter": true,
+        "max_innings": 9
+      },
+      "metadata": {
+        "venue": "Tiger Stadium",
+        "attendance": 35000,
+        "weather": "Clear, 72°F",
+        "duration_minutes": 175
+      }
+    }
+  ]
+}
+```
+
+### Archive File Naming Convention
+
+Baselom archives use the `.baselom.json` extension:
+
+```
+season_2024.baselom.json
+tournament_summer.baselom.json
+team_tigers_games.baselom.json
+```
+
+### Serialization Functions
+
+```python
+from baselom_core import (
+    export_archive,
+    import_archive,
+    validate_archive
+)
+import json
+
+# Export archive to JSON
+archive_data = export_archive(archive)
+with open('season.baselom.json', 'w') as f:
+    json.dump(archive_data, f, indent=2)
+
+# Import archive from JSON
+with open('season.baselom.json', 'r') as f:
+    archive_data = json.load(f)
+archive = import_archive(archive_data)
+
+# Validate archive before import
+validation_result = validate_archive(archive_data)
+if not validation_result.is_valid:
+    print(f"Errors: {validation_result.errors}")
+```
+
 ## See Also
 
 - [Data Models](./data-models.md) - Data structure specifications

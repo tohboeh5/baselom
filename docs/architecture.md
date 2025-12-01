@@ -2,12 +2,21 @@
 
 ## Overview
 
-Baselom Core is a **multi-platform Rust library** that implements a baseball game-state engine as an immutable Finite State Machine (FSM). The core is designed from the ground up to support multiple target platforms:
+Baselom Core is a **multi-platform Rust library** that implements a baseball game-state engine as an immutable Finite State Machine (FSM). The core is designed for both **game simulations** and **real-world game management**, supporting multiple target platforms:
 
 - **Python** (v0.1.0) - via PyO3/maturin bindings (**Initial Release**)
 - **WebAssembly (WASM)** (v0.2.0+) - for browser and edge environments
 - **Native** (Linux, macOS, Windows) - via direct Rust compilation
 - **Future**: Mobile (iOS/Android), other language bindings
+
+### Key Capabilities
+
+| Capability | Description |
+|------------|-------------|
+| **Game State Management** | Track inning progression, base runners, scoring, and substitutions |
+| **Statistics Calculation** | Calculate batting average, ERA, OPS, and other statistics |
+| **Roster Management** | Track player status, bench players, and substitution history |
+| **Multi-Game Archiving** | Store and retrieve multiple games in Baselom JSON format |
 
 ## Release Roadmap
 
@@ -149,12 +158,12 @@ const [newState, event] = applyPitch(state, 'ball', rules);
 console.log(JSON.stringify(event));
 ```
 
-## System Architecture (Legacy Python-focused view)
+## System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              Client Applications                             │
-│              (Baseball Simulators, Game Management Systems)                  │
+│    (Baseball Simulators, Real Game Scorekeeping, Analytics Systems)          │
 └──────────────────────────────┬──────────────────────────────────────────────┘
                                │
                                ▼
@@ -164,23 +173,23 @@ console.log(JSON.stringify(event));
 │  │ models.py   │  │ engine.py    │  │ validators.py  │  │ serializer.py │  │
 │  │ (Type Hints)│  │ (Wrappers)   │  │ (Validation)   │  │ (JSON I/O)    │  │
 │  └─────────────┘  └──────────────┘  └────────────────┘  └───────────────┘  │
-│  ┌─────────────┐                                                            │
-│  │exceptions.py│                                                            │
-│  │ (Errors)    │                                                            │
-│  └─────────────┘                                                            │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────────┐  ┌───────────────┐  │
+│  │exceptions.py│  │statistics.py │  │  roster.py     │  │  archive.py   │  │
+│  │ (Errors)    │  │ (Stats Calc) │  │ (Player Mgmt)  │  │ (Multi-Game)  │  │
+│  └─────────────┘  └──────────────┘  └────────────────┘  └───────────────┘  │
 └──────────────────────────────┬──────────────────────────────────────────────┘
                                │ PyO3 FFI Bindings
                                ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                            Rust Core Engine                                  │
-│  ┌─────────────┐  ┌──────────────┐  ┌────────────────┐                      │
-│  │ models.rs   │  │ engine.rs    │  │ validators.rs  │                      │
-│  │ (Data Types)│  │ (FSM Logic)  │  │ (State Check)  │                      │
-│  └─────────────┘  └──────────────┘  └────────────────┘                      │
-│  ┌─────────────┐  ┌──────────────┐                                          │
-│  │ errors.rs   │  │ lib.rs       │                                          │
-│  │ (Error Types)│ │ (Entry Point)│                                          │
-│  └─────────────┘  └──────────────┘                                          │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────────┐  ┌───────────────┐  │
+│  │ models.rs   │  │ engine.rs    │  │ validators.rs  │  │ statistics.rs │  │
+│  │ (Data Types)│  │ (FSM Logic)  │  │ (State Check)  │  │ (Stats Calc)  │  │
+│  └─────────────┘  └──────────────┘  └────────────────┘  └───────────────┘  │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────────┐  ┌───────────────┐  │
+│  │ errors.rs   │  │ lib.rs       │  │  roster.rs     │  │  archive.rs   │  │
+│  │ (Error Types)│ │ (Entry Point)│  │ (Player Mgmt)  │  │ (Multi-Game)  │  │
+│  └─────────────┘  └──────────────┘  └────────────────┘  └───────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -193,15 +202,18 @@ Baselom Core is **only** responsible for:
 - Rule compliance checking
 - State transitions
 - Event generation
+- **Statistics calculation** (batting average, ERA, etc.)
+- **Roster management** (player status, substitution tracking)
+- **Multi-game archiving** (storing and retrieving game data)
 
 It does **not** handle:
 
-- Player abilities or statistics
+- Player abilities or skill simulation
 - Randomness or probability
 - Game strategy or AI
 - User interface
 - Network communication
-- Data persistence
+- External data persistence (uses JSON for data exchange)
 
 ### 2. Immutability
 
@@ -276,6 +288,9 @@ Events enable:
 | `engine.rs` | FSM transition logic |
 | `validators.rs` | State validation rules |
 | `errors.rs` | Error type definitions |
+| `statistics.rs` | Statistics calculation logic |
+| `roster.rs` | Roster and player management |
+| `archive.rs` | Multi-game archive handling |
 
 ### Python Layer (`baselom_core/`)
 
@@ -287,6 +302,9 @@ Events enable:
 | `validators.py` | Additional Python-side validation |
 | `serializer.py` | JSON serialization/deserialization |
 | `exceptions.py` | Python exception hierarchy |
+| `statistics.py` | Statistics functions and aggregation |
+| `roster.py` | Roster management functions |
+| `archive.py` | Multi-game archive import/export |
 
 ## Data Flow
 

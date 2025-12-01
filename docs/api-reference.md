@@ -573,8 +573,505 @@ def get_game_summary(state: GameState) -> Dict[str, Any]
 
 ---
 
+## Statistics Functions
+
+### calculate_batting_average
+
+Calculate batting average for a player.
+
+#### Signature
+
+```python
+def calculate_batting_average(
+    hits: int,
+    at_bats: int
+) -> float
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `hits` | `int` | Yes | Total number of hits |
+| `at_bats` | `int` | Yes | Total at-bats (excludes walks, HBP, sacrifices) |
+
+#### Returns
+
+`float` - Batting average (0.0 to 1.0). Returns 0.0 if at_bats is 0.
+
+#### Example
+
+```python
+avg = calculate_batting_average(hits=35, at_bats=100)
+print(f"{avg:.3f}")  # 0.350
+```
+
+---
+
+### calculate_era
+
+Calculate earned run average for a pitcher.
+
+#### Signature
+
+```python
+def calculate_era(
+    earned_runs: int,
+    innings_pitched: float
+) -> float
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `earned_runs` | `int` | Yes | Total earned runs allowed |
+| `innings_pitched` | `float` | Yes | Innings pitched (e.g., 6.2 for 6⅔ innings) |
+
+#### Returns
+
+`float` - ERA (earned runs per 9 innings). Returns 0.0 if innings_pitched is 0.
+
+#### Example
+
+```python
+era = calculate_era(earned_runs=25, innings_pitched=90.0)
+print(f"{era:.2f}")  # 2.50
+```
+
+---
+
+### calculate_player_stats
+
+Generate comprehensive statistics for a player from game events.
+
+#### Signature
+
+```python
+def calculate_player_stats(
+    player_id: str,
+    events: List[Event],
+    stat_type: Literal['batting', 'pitching', 'fielding', 'all'] = 'all'
+) -> Union[PlayerBattingStats, PlayerPitchingStats, PlayerFieldingStats, GamePlayerStats]
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `player_id` | `str` | Yes | Player identifier |
+| `events` | `List[Event]` | Yes | List of game events to analyze |
+| `stat_type` | `str` | No | Type of stats to calculate |
+
+#### Returns
+
+Statistics object based on `stat_type`:
+- `'batting'`: `PlayerBattingStats`
+- `'pitching'`: `PlayerPitchingStats`
+- `'fielding'`: `PlayerFieldingStats`
+- `'all'`: `GamePlayerStats` with all applicable stats
+
+#### Example
+
+```python
+batting_stats = calculate_player_stats(
+    player_id='player_42',
+    events=game_state.event_history,
+    stat_type='batting'
+)
+print(f"AVG: {batting_stats.batting_average:.3f}")
+print(f"OPS: {batting_stats.ops:.3f}")
+```
+
+---
+
+### aggregate_stats
+
+Aggregate statistics across multiple games.
+
+#### Signature
+
+```python
+def aggregate_stats(
+    player_id: str,
+    game_stats: List[GamePlayerStats]
+) -> SeasonStats
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `player_id` | `str` | Yes | Player identifier |
+| `game_stats` | `List[GamePlayerStats]` | Yes | Per-game statistics |
+
+#### Returns
+
+`SeasonStats` - Aggregated statistics across all provided games.
+
+#### Example
+
+```python
+season = aggregate_stats(
+    player_id='player_42',
+    game_stats=all_game_stats
+)
+print(f"Season AVG: {season.batting.batting_average:.3f}")
+print(f"Games: {season.games_played}")
+```
+
+---
+
+### calculate_team_stats
+
+Calculate team-wide statistics from a game or season.
+
+#### Signature
+
+```python
+def calculate_team_stats(
+    team: Literal['home', 'away'],
+    game_states: List[GameState]
+) -> Dict[str, Any]
+```
+
+#### Returns
+
+```python
+{
+    'wins': int,
+    'losses': int,
+    'runs_scored': int,
+    'runs_allowed': int,
+    'batting_average': float,
+    'era': float,
+    'top_hitters': List[Dict],
+    'top_pitchers': List[Dict]
+}
+```
+
+---
+
+## Roster Management Functions
+
+### create_roster
+
+Create a new team roster.
+
+#### Signature
+
+```python
+def create_roster(
+    team_id: str,
+    team_name: str,
+    players: List[Player]
+) -> Roster
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `team_id` | `str` | Yes | Unique team identifier |
+| `team_name` | `str` | Yes | Display name for team |
+| `players` | `List[Player]` | Yes | List of players on roster |
+
+#### Returns
+
+`Roster` - New roster with all players set to ACTIVE status.
+
+#### Example
+
+```python
+roster = create_roster(
+    team_id='team_1',
+    team_name='Tigers',
+    players=[
+        Player(player_id='p1', name='John Smith', number=42, positions=('1B', 'OF')),
+        Player(player_id='p2', name='Mike Johnson', number=17, positions=('P',)),
+        # ... more players
+    ]
+)
+```
+
+---
+
+### update_player_status
+
+Update a player's status on the roster.
+
+#### Signature
+
+```python
+def update_player_status(
+    roster: Roster,
+    player_id: str,
+    new_status: PlayerStatus
+) -> Roster
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `roster` | `Roster` | Yes | Current roster |
+| `player_id` | `str` | Yes | Player to update |
+| `new_status` | `PlayerStatus` | Yes | New status |
+
+#### Returns
+
+`Roster` - New roster with updated player status.
+
+#### Example
+
+```python
+# Move player to injured list
+updated_roster = update_player_status(
+    roster=roster,
+    player_id='p1',
+    new_status=PlayerStatus.INJURED
+)
+```
+
+---
+
+### get_player_game_stats
+
+Get statistics for a specific player in a specific game.
+
+#### Signature
+
+```python
+def get_player_game_stats(
+    archive: MultiGameArchive,
+    player_id: str,
+    game_id: str
+) -> Optional[GamePlayerStats]
+```
+
+#### Returns
+
+`GamePlayerStats` if player participated in game, `None` otherwise.
+
+---
+
+### get_player_season_stats
+
+Get aggregated season statistics for a player.
+
+#### Signature
+
+```python
+def get_player_season_stats(
+    archive: MultiGameArchive,
+    player_id: str
+) -> SeasonStats
+```
+
+---
+
+## Multi-Game Archive Functions
+
+### create_game_archive
+
+Create a new multi-game archive.
+
+#### Signature
+
+```python
+def create_game_archive(
+    archive_id: str,
+    name: str,
+    description: str = ""
+) -> MultiGameArchive
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `archive_id` | `str` | Yes | Unique archive identifier |
+| `name` | `str` | Yes | Archive name |
+| `description` | `str` | No | Archive description |
+
+#### Returns
+
+`MultiGameArchive` - Empty archive ready to receive games.
+
+#### Example
+
+```python
+archive = create_game_archive(
+    archive_id='season_2024',
+    name='2024 Season',
+    description='Complete record of 2024 regular season games'
+)
+```
+
+---
+
+### add_game_to_archive
+
+Add a completed game to an archive.
+
+#### Signature
+
+```python
+def add_game_to_archive(
+    archive: MultiGameArchive,
+    game_state: GameState,
+    events: List[Event],
+    home_roster: Roster,
+    away_roster: Roster,
+    metadata: Optional[Dict[str, Any]] = None
+) -> MultiGameArchive
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `archive` | `MultiGameArchive` | Yes | Archive to add game to |
+| `game_state` | `GameState` | Yes | Final game state |
+| `events` | `List[Event]` | Yes | All game events |
+| `home_roster` | `Roster` | Yes | Home team roster |
+| `away_roster` | `Roster` | Yes | Away team roster |
+| `metadata` | `Dict` | No | Additional metadata |
+
+#### Returns
+
+`MultiGameArchive` - Updated archive with new game.
+
+#### Raises
+
+| Exception | Condition |
+|-----------|-----------|
+| `ValidationError` | Game not in 'final' status |
+| `ValidationError` | Duplicate game_id |
+
+#### Example
+
+```python
+archive = add_game_to_archive(
+    archive=archive,
+    game_state=final_state,
+    events=all_events,
+    home_roster=home_roster,
+    away_roster=away_roster,
+    metadata={'venue': 'Stadium A', 'attendance': 25000}
+)
+```
+
+---
+
+### export_archive
+
+Export archive to Baselom JSON format.
+
+#### Signature
+
+```python
+def export_archive(
+    archive: MultiGameArchive,
+    include_events: bool = True,
+    include_stats: bool = True
+) -> Dict[str, Any]
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `archive` | `MultiGameArchive` | Yes | Archive to export |
+| `include_events` | `bool` | No | Include full event history |
+| `include_stats` | `bool` | No | Include player statistics |
+
+#### Returns
+
+`Dict[str, Any]` - JSON-serializable dictionary.
+
+#### Example
+
+```python
+data = export_archive(archive)
+with open('season_2024.baselom.json', 'w') as f:
+    json.dump(data, f, indent=2)
+```
+
+---
+
+### import_archive
+
+Import archive from Baselom JSON format.
+
+#### Signature
+
+```python
+def import_archive(
+    data: Dict[str, Any]
+) -> MultiGameArchive
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `data` | `Dict[str, Any]` | Yes | JSON data to import |
+
+#### Returns
+
+`MultiGameArchive` - Reconstructed archive.
+
+#### Raises
+
+| Exception | Condition |
+|-----------|-----------|
+| `DeserializationError` | Invalid format |
+| `SchemaError` | Version mismatch |
+
+#### Example
+
+```python
+with open('season_2024.baselom.json', 'r') as f:
+    data = json.load(f)
+archive = import_archive(data)
+```
+
+---
+
+### query_archive
+
+Query games from archive with filters.
+
+#### Signature
+
+```python
+def query_archive(
+    archive: MultiGameArchive,
+    team_id: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    player_id: Optional[str] = None
+) -> List[GameRecord]
+```
+
+#### Example
+
+```python
+# Get all games for a specific team in June
+games = query_archive(
+    archive=archive,
+    team_id='team_1',
+    start_date='2024-06-01',
+    end_date='2024-06-30'
+)
+```
+
+---
+
 ## See Also
 
 - [Data Models](./data-models.md) - Complete model specifications
 - [Rules Logic](./rules-logic.md) - Baseball rule processing details
 - [Error Handling](./error-handling.md) - Exception hierarchy
+- [Serialization](./serialization.md) - Multi-game archive JSON format

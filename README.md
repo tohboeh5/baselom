@@ -8,6 +8,17 @@
 
 Baselom Core implements inning progression, base/runner state, scoring, and substitutions as an immutable, testable Finite State Machine (FSM). Like [Polars](https://github.com/pola-rs/polars), the core engine is written in Rust for maximum performance and exposed to Python via PyO3/maturin.
 
+## 🎯 Use Cases
+
+Baselom Core is designed for both **game simulations** and **real-world game management**:
+
+| Use Case | Description |
+|----------|-------------|
+| **⚾ Real Game Score Management** | Track actual baseball games with official scoring, substitutions, and statistics |
+| **🎮 Game Simulations** | Build baseball video games, fantasy baseball engines, or AI training environments |
+| **📊 Statistics & Analytics** | Calculate batting averages, ERA, and other statistics across multiple games |
+| **📝 Score Archiving** | Store and replay complete game data using Baselom's multi-game archive format |
+
 ## ✨ Key Features
 
 - **🎯 Single Responsibility**: Only handles rule compliance and state transitions. No randomness, probabilities, player abilities, or tactics.
@@ -16,6 +27,9 @@ Baselom Core implements inning progression, base/runner state, scoring, and subs
 - **⚙️ Configurable Rules**: DH, extra innings, tiebreaker rules externalized via `GameRules`.
 - **📝 Event-Oriented**: All plays output as `Event` objects, immediately serializable to JSON.
 - **⚡ High Performance**: Rust core with Python bindings via PyO3/maturin.
+- **📊 Statistics Engine**: Calculate batting averages, ERA, OPS, and other statistics across multiple games.
+- **👥 Roster Management**: Track player states including bench, active roster, and substitution history.
+- **📦 Multi-Game Archive**: Store and retrieve complete game data in Baselom's native JSON format.
 
 ## 🏗️ Architecture
 
@@ -117,6 +131,32 @@ class GameRules:
 | `force_substitution()` | Handle player substitutions |
 | `end_half_inning()` | Transition to next half-inning |
 
+### Statistics Functions
+
+| Function | Description |
+|----------|-------------|
+| `calculate_batting_average()` | Calculate batting average from player stats |
+| `calculate_era()` | Calculate earned run average for pitcher |
+| `calculate_player_stats()` | Generate comprehensive stats for a player |
+| `aggregate_season_stats()` | Aggregate stats across multiple games |
+
+### Multi-Game Archive Functions
+
+| Function | Description |
+|----------|-------------|
+| `create_game_archive()` | Create a new multi-game archive |
+| `add_game_to_archive()` | Add a completed game to archive |
+| `export_archive()` | Export archive to Baselom JSON format |
+| `import_archive()` | Import archive from Baselom JSON format |
+
+### Roster Management Functions
+
+| Function | Description |
+|----------|-------------|
+| `create_roster()` | Create a team roster |
+| `update_player_status()` | Update player status (active/bench/injured) |
+| `get_player_game_stats()` | Get per-game statistics for a player |
+
 ## 📁 Project Structure
 
 ```
@@ -169,4 +209,4 @@ MIT License - see [LICENSE](./LICENSE) for details.
 
 ---
 
-*Baselom Core is designed to be the foundation for baseball simulation systems, providing a reliable, tested, and high-performance rules engine*.
+*Baselom Core is designed to be the foundation for baseball simulation systems and real-world game management, providing a reliable, tested, and high-performance rules engine*.
