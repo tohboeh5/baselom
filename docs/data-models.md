@@ -2,7 +2,64 @@
 
 ## Overview
 
-This document specifies all data models used in Baselom Core. All models follow immutability principles and are designed for serialization.
+This document specifies all data models used in Baselom Core. All models follow **strict immutability principles** and are designed for deterministic serialization.
+
+## Immutability Requirements
+
+All data models in Baselom are **deeply immutable**:
+
+| Requirement | Description |
+|-------------|-------------|
+| **Frozen dataclasses** | All dataclasses use `frozen=True` |
+| **Immutable containers** | Use `Tuple` instead of `List`, `FrozenDict` instead of `Dict` for nested structures |
+| **No mutation methods** | No methods that modify internal state |
+| **Copy-on-write** | State changes return new instances |
+
+### Python Implementation
+
+```python
+from typing import Tuple, Mapping
+from types import MappingProxyType
+from dataclasses import dataclass
+
+# Use immutable containers
+@dataclass(frozen=True)
+class ImmutableExample:
+    items: Tuple[str, ...]           # Not List[str]
+    metadata: Mapping[str, str]       # Not Dict[str, str]
+    
+    def __post_init__(self):
+        # Ensure metadata is truly immutable
+        if not isinstance(self.metadata, MappingProxyType):
+            object.__setattr__(
+                self, 'metadata', 
+                MappingProxyType(dict(self.metadata))
+            )
+```
+
+### Rust Implementation
+
+```rust
+// All structs derive Clone but not mutating traits
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct GameState {
+    pub inning: u8,
+    pub top: bool,
+    // Use Vec but treat as immutable (clone for modifications)
+    pub bases: [Option<String>; 3],
+    // ...
+}
+
+impl GameState {
+    // All "mutations" return new instances
+    pub fn with_outs(&self, outs: u8) -> Self {
+        Self {
+            outs,
+            ..self.clone()
+        }
+    }
+}
+```
 
 ## Core Models
 
@@ -13,6 +70,10 @@ The primary state object representing a complete game snapshot.
 #### Definition
 
 ```python
+from typing import Tuple, Mapping, Optional, Literal, Any
+from types import MappingProxyType
+from dataclasses import dataclass
+
 @dataclass(frozen=True)
 class GameState:
     """Immutable representation of baseball game state."""
@@ -41,9 +102,9 @@ class GameState:
     None indicates empty base.
     """
     
-    # Score
-    score: Dict[str, int]
-    """Scores by team: {'home': int, 'away': int}."""
+    # Score (Immutable mapping)
+    score: Mapping[str, int]
+    """Scores by team: {'home': int, 'away': int}. Uses MappingProxyType internally."""
     
     # Team Context
     batting_team: Literal['home', 'away']
@@ -59,40 +120,48 @@ class GameState:
     current_batter_id: Optional[str]
     """Active batter's player ID."""
     
-    # Lineup State
-    lineup_index: Dict[str, int]
+    # Lineup State (Immutable mappings)
+    lineup_index: Mapping[str, int]
     """
     Current batting order position per team.
     {'home': 0-8, 'away': 0-8}
+    Uses MappingProxyType internally.
     """
     
-    lineups: Dict[str, Tuple[str, ...]]
+    lineups: Mapping[str, Tuple[str, ...]]
     """
     Batting order per team.
     {'home': (id1, id2, ..., id9), 'away': (id1, id2, ..., id9)}
+    Uses MappingProxyType internally.
     """
     
-    # Pitchers
-    pitchers: Dict[str, str]
-    """Current pitcher per team: {'home': pitcher_id, 'away': pitcher_id}."""
+    # Pitchers (Immutable mapping)
+    pitchers: Mapping[str, str]
+    """Current pitcher per team: {'home': pitcher_id, 'away': pitcher_id}. Uses MappingProxyType internally."""
     
-    # Game Progress
-    inning_runs: Dict[str, int]
-    """Runs scored in current half-inning per team."""
+    # Game Progress (Immutable mapping)
+    inning_runs: Mapping[str, int]
+    """Runs scored in current half-inning per team. Uses MappingProxyType internally."""
     
     game_status: Literal['in_progress', 'final', 'suspended']
     """Current game status."""
     
     # Event Tracking
-    event_history: Tuple[Dict[str, Any], ...]
-    """Immutable sequence of all events in the game."""
+    event_history: Tuple[Mapping[str, Any], ...]
+    """
+    Immutable sequence of event references.
+    
+    Note: For efficiency, this may store only event_ids rather than full events.
+    Full event data is retrieved from the payload store when needed.
+    See serialization.md for the Event History Storage Architecture.
+    """
     
     # Metadata
     rules_version: str
     """Version identifier for rules applied."""
     
     created_at: str
-    """ISO 8601 timestamp of state creation."""
+    """ISO 8601 timestamp of state creation (UTC with Z suffix)."""
 ```
 
 #### Field Constraints
@@ -249,35 +318,83 @@ CLASSIC_RULES = GameRules(
 
 ### Event
 
-Immutable record of a game event.
+Immutable record of a game event with **envelope/payload structure**.
 
-#### Base Event Structure
+#### Event Architecture
+
+Events consist of two parts:
+
+| Part | Purpose | Included in event_id |
+|------|---------|---------------------|
+| **Envelope** | Metadata (ID, type, timestamps, source) | No (except event_type and schema_version) |
+| **Payload** | Essential facts for replay | Yes |
+
+This separation enables:
+- Content-based identification (same play = same ID, regardless of timestamp)
+- Efficient storage (deduplication by event_id)
+- Clear audit trail (envelope stores when/who/where)
+
+#### Event Envelope
 
 ```python
 @dataclass(frozen=True)
-class Event:
-    """Base event class for all game events."""
-    
-    event_type: str
-    """Event type identifier."""
+class EventEnvelope:
+    """Metadata wrapper for events."""
     
     event_id: str
-    """Unique event identifier (UUID)."""
+    """
+    Content-based identifier: SHA-256(schema_version|event_type|canonical_json(payload)).
+    NOT a UUID - derived from payload content.
+    """
     
-    timestamp: str
-    """ISO 8601 timestamp."""
+    event_type: str
+    """Event type with version suffix (e.g., 'hit.v1', 'out.v1')."""
+    
+    schema_version: str
+    """Schema version for payload structure (e.g., '1')."""
+    
+    created_at: str
+    """ISO 8601 timestamp (UTC with Z suffix). NOT included in event_id calculation."""
+    
+    actor: Optional[str] = None
+    """Entity that created this event (e.g., 'baselom-engine-v0.9')."""
+    
+    source: Optional[str] = None
+    """Source system identifier (e.g., 'game-server-1')."""
+```
+
+#### Base Event Payload
+
+```python
+@dataclass(frozen=True)
+class EventPayload:
+    """Base payload class containing essential facts for replay."""
+    
+    game_id: str
+    """Game identifier."""
     
     inning: int
     """Inning number when event occurred."""
     
     top: bool
-    """Half inning (top/bottom)."""
+    """Half inning (top=True, bottom=False)."""
     
     outs_before: int
-    """Outs before the event."""
+    """Outs before the event (0-2)."""
+```
+
+#### Complete Event
+
+```python
+@dataclass(frozen=True)
+class Event:
+    """Complete event with envelope and payload."""
     
-    outs_after: int
-    """Outs after the event."""
+    envelope: EventEnvelope
+    """Event metadata."""
+    
+    payload: EventPayload  # Or specific payload subclass
+    """Event content."""
 ```
 
 #### Event Types
@@ -294,8 +411,9 @@ class Event:
 
 ```python
 @dataclass(frozen=True)
-class PitchEvent(Event):
-    event_type: Literal['ball', 'strike_called', 'strike_swinging', 'foul', 'foul_tip']
+class PitchEventPayload(EventPayload):
+    """Payload for pitch events."""
+    pitch_result: Literal['ball', 'strike_called', 'strike_swinging', 'foul', 'foul_tip']
     pitcher_id: str
     batter_id: str
     balls_after: int
@@ -315,13 +433,22 @@ class PitchEvent(Event):
 
 ```python
 @dataclass(frozen=True)
-class HitEvent(Event):
-    event_type: Literal['single', 'double', 'triple', 'home_run', 'ground_rule_double']
+class HitEventPayload(EventPayload):
+    """Payload for hit events.
+    
+    Note: 'rbi' and 'runners_scored' are NOT stored - they are derived during replay.
+    Only essential facts (who hit, where runners moved) are stored.
+    """
+    hit_type: Literal['single', 'double', 'triple', 'home_run', 'ground_rule_double']
     batter_id: str
     pitcher_id: str
-    rbi: int
-    runners_scored: Tuple[str, ...]
-    runners_advanced: Tuple[Dict[str, Any], ...]
+    runner_advances: Tuple[Mapping[str, Any], ...]
+    """
+    Minimal runner movement info.
+    Each entry: {'runner_id': str, 'from_base': int, 'to_base': int}
+    from_base: 0=batter, 1-3=bases
+    to_base: 1-3=bases, 4=home
+    """
 ```
 
 ##### Out Events
@@ -341,8 +468,9 @@ class HitEvent(Event):
 
 ```python
 @dataclass(frozen=True)
-class OutEvent(Event):
-    event_type: str
+class OutEventPayload(EventPayload):
+    """Payload for out events."""
+    out_type: str
     batter_id: str
     pitcher_id: str
     fielders: Tuple[str, ...]
@@ -360,12 +488,13 @@ class OutEvent(Event):
 
 ```python
 @dataclass(frozen=True)
-class WalkEvent(Event):
-    event_type: Literal['walk', 'intentional_walk', 'hit_by_pitch']
+class WalkEventPayload(EventPayload):
+    """Payload for walk/HBP events."""
+    walk_type: Literal['walk', 'intentional_walk', 'hit_by_pitch']
     batter_id: str
     pitcher_id: str
-    runners_advanced: Tuple[Dict[str, Any], ...]
-    run_scored: bool
+    runner_advances: Tuple[Mapping[str, Any], ...]
+    """Forced runner advances due to walk. Run scored is derived."""
 ```
 
 ##### Base Running Events
@@ -401,10 +530,31 @@ class BaseRunningEvent(Event):
 
 ```python
 @dataclass(frozen=True)
-class GameEvent(Event):
-    event_type: str
-    details: Dict[str, Any]
+class GameEventPayload(EventPayload):
+    """Payload for game management events."""
+    event_subtype: str  # 'half_inning_end', 'game_start', etc.
+    details: Mapping[str, Any]  # Immutable mapping for event-specific details
 ```
+
+#### Legacy Event Format (Deprecated)
+
+For backward compatibility, the flat event format is still supported:
+
+```python
+@dataclass(frozen=True)
+class LegacyEvent:
+    """Deprecated flat event format. Use Event with envelope/payload instead."""
+    event_type: str
+    event_id: str  # UUID in legacy format
+    timestamp: str
+    inning: int
+    top: bool
+    outs_before: int
+    outs_after: int
+    # ... additional fields depending on event type
+```
+
+**Migration Note**: Legacy events with UUID-based `event_id` should be migrated to the new format with content-based IDs. See [Serialization - Migration Strategy](./serialization.md#migration-strategy).
 
 ---
 

@@ -573,6 +573,177 @@ def get_game_summary(state: GameState) -> Dict[str, Any]
 
 ---
 
+## Serialization and Hashing Functions
+
+### canonical_json_bytes
+
+Convert a payload to canonical JSON bytes (RFC 8785 compliant).
+
+#### Signature
+
+```python
+def canonical_json_bytes(payload: Mapping[str, Any]) -> bytes
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `payload` | `Mapping[str, Any]` | Yes | Data structure to serialize |
+
+#### Returns
+
+`bytes` - Canonical JSON bytes with sorted keys and no whitespace.
+
+#### Example
+
+```python
+payload = {'zebra': 1, 'apple': 2}
+result = canonical_json_bytes(payload)
+# Result: b'{"apple":2,"zebra":1}'
+```
+
+---
+
+### generate_event_id
+
+Generate a content-based event ID from payload.
+
+#### Signature
+
+```python
+def generate_event_id(
+    payload: Mapping[str, Any],
+    event_type: str,
+    schema_version: str
+) -> str
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `payload` | `Mapping[str, Any]` | Yes | Event payload (excluding timestamps and ID) |
+| `event_type` | `str` | Yes | Event type (e.g., 'hit.v1') |
+| `schema_version` | `str` | Yes | Schema version (e.g., '1') |
+
+#### Returns
+
+`str` - SHA-256 hex digest (64 characters).
+
+#### Algorithm
+
+```
+event_id = SHA-256(schema_version + "|" + event_type + "|" + canonical_json(payload))
+```
+
+#### Example
+
+```python
+payload = {'game_id': 'g1', 'inning': 1, 'top': True, 'batter_id': 'p1'}
+event_id = generate_event_id(payload, 'hit.v1', '1')
+# Result: 'a7b3c2d1...' (64 hex characters)
+```
+
+---
+
+### normalize_state
+
+Remove time-like fields from state for comparison.
+
+#### Signature
+
+```python
+def normalize_state(state: Mapping[str, Any]) -> dict
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `state` | `Mapping[str, Any]` | Yes | State to normalize |
+
+#### Returns
+
+`dict` - State with time fields (`created_at`, `updated_at`, etc.) removed recursively.
+
+#### Example
+
+```python
+state = {'inning': 1, 'outs': 0, 'created_at': '2024-01-01T10:00:00Z'}
+normalized = normalize_state(state)
+# Result: {'inning': 1, 'outs': 0}
+```
+
+---
+
+### state_hash
+
+Compute hash of normalized state for comparison.
+
+#### Signature
+
+```python
+def state_hash(state: Mapping[str, Any]) -> str
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `state` | `Mapping[str, Any]` | Yes | State to hash |
+
+#### Returns
+
+`str` - SHA-256 hex digest of normalized, canonicalized state.
+
+#### Example
+
+```python
+hash1 = state_hash(state1)
+hash2 = state_hash(state2)
+if hash1 == hash2:
+    print("States are semantically identical")
+```
+
+---
+
+### states_equal_ignoring_time
+
+Check if two states are semantically equal (ignoring timestamps).
+
+#### Signature
+
+```python
+def states_equal_ignoring_time(
+    state1: Mapping[str, Any],
+    state2: Mapping[str, Any]
+) -> bool
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `state1` | `Mapping[str, Any]` | Yes | First state |
+| `state2` | `Mapping[str, Any]` | Yes | Second state |
+
+#### Returns
+
+`bool` - True if states are semantically equal (ignoring time fields).
+
+#### Example
+
+```python
+# Different timestamps, same game state
+state1 = {'inning': 5, 'outs': 2, 'created_at': '2024-01-01T10:00:00Z'}
+state2 = {'inning': 5, 'outs': 2, 'created_at': '2024-01-01T15:30:00Z'}
+
+assert states_equal_ignoring_time(state1, state2)  # True
+```
+
+---
+
 ## Statistics Functions
 
 ### calculate_batting_average
