@@ -65,18 +65,24 @@ Baselom Core is a **multi-platform Rust library** that implements a baseball gam
 
 The architecture follows WASM-compatible design principles to ensure the core library can run in any environment:
 
-### 1. No Standard Library Dependencies (where possible)
+### 1. Standard Library Conditional Usage
+
+The core logic is designed to be `#![no_std]` compatible with the `alloc` crate for heap allocation. However, some features require the standard library and are gated behind feature flags.
 
 ```rust
-// Core logic uses #![no_std] compatible patterns
-// Only alloc crate for heap allocation
-
+// Core types and logic - no_std compatible
 #[cfg(not(feature = "std"))]
 extern crate alloc;
 
 #[cfg(not(feature = "std"))]
 use alloc::{string::String, vec::Vec};
+
+// JSON serialization requires std feature
+#[cfg(feature = "std")]
+use serde_json;
 ```
+
+**Note**: Full `serde_json` support requires the `std` feature. For `no_std` environments (e.g., embedded WASM), binary serialization via `postcard` or `bincode` (with `no_std` feature) is available as an alternative.
 
 ### 2. No I/O or System Calls
 
@@ -445,11 +451,12 @@ The event system can be extended to include:
 
 ### Rust Core Dependencies
 
-| Crate | Purpose | WASM Compatible |
-|-------|---------|-----------------|
-| `serde` | Serialization | ✅ Yes |
-| `serde_json` | JSON support | ✅ Yes |
-| `thiserror` | Error handling | ✅ Yes |
+| Crate | Purpose | WASM Compatible | Notes |
+|-------|---------|-----------------|-------|
+| `serde` | Serialization | ✅ Yes | Core derive macros work in all environments |
+| `serde_json` | JSON support | ⚠️ Requires `std` | Use `--features std` for JSON; for no_std WASM, use binary formats |
+| `thiserror` | Error handling | ✅ Yes | |
+| `postcard` | Binary serialization | ✅ Yes (no_std) | Alternative for no_std environments |
 
 ### Platform-Specific Dependencies
 

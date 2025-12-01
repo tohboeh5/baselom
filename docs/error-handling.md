@@ -521,6 +521,155 @@ impl From<BaselomError> for PyErr {
 }
 ```
 
+### PyO3 Error Mapping Rules
+
+The following table defines how Rust error types map to Python exceptions:
+
+| Rust Error Variant | Python Exception | Error Code | Notes |
+|-------------------|------------------|------------|-------|
+| `BaselomError::Validation { .. }` | `ValidationError` | `VALIDATION_ERROR` | Input validation failures |
+| `BaselomError::State { .. }` | `StateError` | `STATE_ERROR` | Invalid state transitions |
+| `BaselomError::RuleViolation { .. }` | `RuleViolation` | `RULE_VIOLATION` | Baseball rule violations |
+| `BaselomError::Serialization { .. }` | `SerializationError` | `SERIALIZATION_ERROR` | JSON parse/format errors |
+| `BaselomError::Internal { .. }` | `InternalError` | `INTERNAL_ERROR` | Unexpected errors |
+
+### Exception Details Preservation
+
+When converting from Rust to Python, error details are preserved:
+
+```rust
+// Rust error with details
+BaselomError::Validation {
+    message: "Invalid lineup size".to_string(),
+    field: Some("home_lineup".to_string()),
+    value: Some("3".to_string()),  // stringified
+}
+
+// Becomes Python exception with accessible details
+# Python
+try:
+    initial_game_state(home_lineup=['p1', 'p2', 'p3'], ...)
+except ValidationError as e:
+    print(e.message)   # "Invalid lineup size"
+    print(e.code)      # "VALIDATION_ERROR"
+    print(e.details)   # {'field': 'home_lineup', 'value': '3'}
+```
+
+## REST/HTTP API Error Format
+
+For applications exposing Baselom via REST API, use the following standardized error response format:
+
+### Error Response Schema
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ErrorResponse",
+  "type": "object",
+  "required": ["error", "code", "message"],
+  "properties": {
+    "error": {
+      "type": "string",
+      "description": "Error class name (e.g., 'ValidationError')"
+    },
+    "code": {
+      "type": "string",
+      "description": "Machine-readable error code (e.g., 'VALIDATION_ERROR')"
+    },
+    "message": {
+      "type": "string",
+      "description": "Human-readable error description"
+    },
+    "details": {
+      "type": "object",
+      "description": "Additional error context",
+      "additionalProperties": true
+    },
+    "request_id": {
+      "type": "string",
+      "description": "Optional request identifier for tracing"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of error occurrence"
+    }
+  }
+}
+```
+
+### HTTP Status Code Mapping
+
+| Error Code | HTTP Status | Description |
+|------------|-------------|-------------|
+| `VALIDATION_ERROR` | 400 Bad Request | Invalid input data |
+| `INVALID_STATE` | 400 Bad Request | Malformed state object |
+| `INVALID_INPUT` | 400 Bad Request | Invalid function parameters |
+| `CONSTRAINT_VIOLATION` | 400 Bad Request | Value constraint violated |
+| `STATE_ERROR` | 409 Conflict | Invalid state transition |
+| `INVALID_TRANSITION` | 409 Conflict | Transition not allowed |
+| `GAME_ENDED` | 409 Conflict | Game has ended |
+| `ILLEGAL_STATE` | 409 Conflict | Inconsistent state |
+| `RULE_VIOLATION` | 422 Unprocessable Entity | Baseball rule violated |
+| `SUBSTITUTION_ERROR` | 422 Unprocessable Entity | Invalid substitution |
+| `LINEUP_ERROR` | 422 Unprocessable Entity | Lineup rule violated |
+| `PLAY_ERROR` | 422 Unprocessable Entity | Play not allowed |
+| `SERIALIZATION_ERROR` | 400 Bad Request | JSON parsing failed |
+| `DESERIALIZATION_ERROR` | 400 Bad Request | Cannot parse input |
+| `SCHEMA_ERROR` | 400 Bad Request | Schema validation failed |
+| `INTERNAL_ERROR` | 500 Internal Server Error | Unexpected error |
+
+### Example REST Error Response
+
+```json
+{
+  "error": "ValidationError",
+  "code": "VALIDATION_ERROR",
+  "message": "Lineup must contain exactly 9 players",
+  "details": {
+    "field": "home_lineup",
+    "value": ["p1", "p2", "p3"],
+    "constraint": "length == 9",
+    "actual_length": 3
+  },
+  "request_id": "req_abc123",
+  "timestamp": "2025-12-15T10:30:00Z"
+}
+```
+
+### Converting Exceptions to HTTP Responses
+
+```python
+from flask import jsonify
+from baselom_core import BaseBaselomError
+
+ERROR_CODE_TO_HTTP_STATUS = {
+    'VALIDATION_ERROR': 400,
+    'INVALID_STATE': 400,
+    'INVALID_INPUT': 400,
+    'CONSTRAINT_VIOLATION': 400,
+    'STATE_ERROR': 409,
+    'INVALID_TRANSITION': 409,
+    'GAME_ENDED': 409,
+    'ILLEGAL_STATE': 409,
+    'RULE_VIOLATION': 422,
+    'SUBSTITUTION_ERROR': 422,
+    'LINEUP_ERROR': 422,
+    'PLAY_ERROR': 422,
+    'SERIALIZATION_ERROR': 400,
+    'DESERIALIZATION_ERROR': 400,
+    'SCHEMA_ERROR': 400,
+    'INTERNAL_ERROR': 500,
+}
+
+def handle_baselom_error(error: BaseBaselomError):
+    """Convert Baselom exception to HTTP response."""
+    status_code = ERROR_CODE_TO_HTTP_STATUS.get(error.code, 500)
+    response = error.to_dict()
+    response['timestamp'] = datetime.utcnow().isoformat() + 'Z'
+    return jsonify(response), status_code
+```
+
 ## Testing Error Conditions
 
 ```python

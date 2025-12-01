@@ -87,6 +87,7 @@ Baselom Core is designed for both **game simulations** and **real-world game man
 | [Testing](./testing.md) | Test strategy, test categories, fixtures, coverage targets, CI testing |
 | [Development Guide](./development.md) | Environment setup, build commands, debugging, CI/CD pipeline, contribution guidelines |
 | [Versioning](./versioning.md) | Semantic versioning policy, compatibility guarantees, deprecation process, migration |
+| [Specification Fixes](./SPECIFICATION_FIXES.md) | Summary of inconsistencies found and fixes applied to documentation |
 
 ## Quick Start
 

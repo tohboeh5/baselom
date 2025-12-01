@@ -136,7 +136,8 @@ Baselom Core provides JSON serialization and deserialization for all data models
     },
     "game_status": {
       "type": "string",
-      "enum": ["in_progress", "final", "suspended", "not_started"]
+      "enum": ["in_progress", "final", "suspended"],
+      "description": "Current game status. Note: GameStatus enum in data-models.md includes additional states (not_started, postponed, cancelled) for broader use cases, but GameState only uses these three values."
     },
     "event_history": {
       "type": "array",
@@ -573,20 +574,69 @@ let game_rules: GameRules = serde_json::from_str(&rules_json)?;
 
 ### Schema Version
 
-All serialized objects include a `rules_version` field to enable:
+All serialized objects include version information to enable:
 - Forward compatibility checks
 - Migration between versions
 - Validation against appropriate schema
+
+**Important**: There are two distinct version fields:
+- `rules_version`: Version of the game rules applied (stored in GameState). Example: A game played with 2024 MLB rules would have `rules_version: "2024.1.0"`. This version stays with the game data forever.
+- `baselom_version`: Version of Baselom Core that created the archive (stored in MultiGameArchive). Example: `baselom_version: "1.2.0"`. This indicates which library version was used to serialize the data.
+
+```json
+// In GameState
+{
+  "inning": 5,
+  "rules_version": "2024.1.0",  // Rules used during game
+  ...
+}
+
+// In MultiGameArchive
+{
+  "archive_id": "season_2024",
+  "baselom_version": "1.2.0",   // Library version
+  "games": [...]
+}
+```
+
+### JSON Schema Version
+
+The JSON schema itself follows semantic versioning:
+- **Schema v1.x**: Current stable schema
+- Schema changes are documented in CHANGELOG.md
 
 ### Version Format
 
 ```
 MAJOR.MINOR.PATCH
 
-MAJOR: Breaking schema changes
-MINOR: New optional fields
+MAJOR: Breaking schema changes (field removal, type changes, required field additions)
+MINOR: New optional fields, new enum values
 PATCH: Bug fixes, documentation
 ```
+
+### Compatibility Guarantees
+
+| Scenario | Supported | Notes |
+|----------|-----------|-------|
+| Read older version data | ✅ Yes | Migration functions apply defaults |
+| Read newer MINOR version | ✅ Yes | Unknown fields ignored |
+| Read newer MAJOR version | ❌ No | Explicit migration required |
+| Write for older version | ⚠️ Limited | May lose new fields |
+
+### Forward Compatibility
+
+When reading data with unknown fields (from a newer minor version):
+- Unknown fields are preserved during deserialization
+- Unknown enum values raise warnings but don't fail
+- Optional fields with unknown defaults use schema defaults
+
+### Backward Compatibility
+
+When reading data from older versions:
+- Missing optional fields use schema defaults
+- Migration functions handle structural changes
+- Required fields missing from old versions cause errors
 
 ### Migration Strategy
 
@@ -606,6 +656,26 @@ def migrate_state(state_dict: dict) -> dict:
     
     state_dict['rules_version'] = CURRENT_VERSION
     return state_dict
+```
+
+### Event Type Discriminator
+
+Events use the `event_type` field as a discriminator for polymorphic deserialization:
+
+```python
+def deserialize_event(data: dict) -> Event:
+    """Deserialize event using type discriminator."""
+    event_type = data.get('event_type')
+    
+    if event_type in ('single', 'double', 'triple', 'home_run', 'ground_rule_double'):
+        return HitEvent(**data)
+    elif event_type in ('strikeout_swinging', 'strikeout_looking', 'ground_out', ...):
+        return OutEvent(**data)
+    elif event_type in ('walk', 'intentional_walk', 'hit_by_pitch'):
+        return WalkEvent(**data)
+    # ... etc.
+    else:
+        return Event(**data)  # Base event for unknown types
 ```
 
 ## Error Handling
