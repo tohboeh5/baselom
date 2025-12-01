@@ -155,16 +155,29 @@ Used in runner advancement operations."""
 
 ---
 
+## Code Review Improvements
+
+After initial fixes, the following improvements were made based on code review feedback:
+
+1. **BaseOrHome Type Alias**: Added example usage showing how `runner_advances` dictionary uses `BaseIndex → BaseOrHome` mapping
+2. **Error Response Timestamp**: Updated example from 2024 to 2025 for currency
+3. **Version Fields**: Added JSON examples clarifying the difference between `rules_version` and `baselom_version`
+4. **README Imports**: Added typing imports (`Literal`, `Tuple`, `Dict`, `Optional`, `Any`) to GameState code example
+
+---
+
 ## Documents Modified
 
 1. **README.md**
    - Fixed Quick Start example (Issue 1)
    - Updated GameState definition (Issue 4)
    - Fixed function name (Issue 8)
+   - Added typing imports (Code Review)
 
 2. **docs/data-models.md**
    - Added BaseOrHome type alias (Issue 2)
    - Enhanced GameStatus enum documentation (Issue 7)
+   - Added example usage to BaseOrHome docstring (Code Review)
 
 3. **docs/architecture.md**
    - Clarified no_std/std requirements (Issue 3)
@@ -173,11 +186,13 @@ Used in runner advancement operations."""
 4. **docs/serialization.md**
    - Fixed game_status enum values (Issue 7)
    - Enhanced versioning section (Issue 5)
+   - Added version field examples (Code Review)
 
 5. **docs/error-handling.md**
    - Added PyO3 mapping rules (Issue 6)
    - Added REST error format (Issue 6)
    - Added HTTP status code mapping (Issue 6)
+   - Updated example timestamp (Code Review)
 
 ---
 
