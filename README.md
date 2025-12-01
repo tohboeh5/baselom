@@ -71,10 +71,10 @@ state = initial_game_state(
     rules=rules
 )
 
-# Apply a pitch result
-state, event = apply_pitch(state, 'hit_single', rules)
+# Apply a pitch result (ball put in play resulting in a single)
+state, event = apply_pitch(state, 'in_play', rules, batted_ball_result='single')
 print(event)
-# {'type': 'single', 'batter': 'a1', 'rbi': 0, ...}
+# {'event_type': 'single', 'batter_id': 'a1', 'rbi': 0, ...}
 
 # State is immutable - original unchanged
 print(state.bases)  # ('a1', None, None)
@@ -92,17 +92,25 @@ class GameState:
     inning: int                     # 1-based inning number
     top: bool                       # True = top of inning
     outs: int                       # 0..2
+    balls: int                      # 0..3
+    strikes: int                    # 0..2
     bases: Tuple[Optional[str], Optional[str], Optional[str]]
     score: Dict[str, int]           # {'home': int, 'away': int}
-    batting_team: str               # 'home' or 'away'
-    fielding_team: str
+    batting_team: Literal['home', 'away']
+    fielding_team: Literal['home', 'away']
     current_pitcher_id: Optional[str]
     current_batter_id: Optional[str]
-    lineup_index: Dict[str, int]
+    lineup_index: Dict[str, int]    # {'home': 0-8, 'away': 0-8}
+    lineups: Dict[str, Tuple[str, ...]]
+    pitchers: Dict[str, str]        # {'home': pitcher_id, 'away': pitcher_id}
     inning_runs: Dict[str, int]
-    event_history: Tuple[dict, ...]
+    game_status: Literal['in_progress', 'final', 'suspended']
+    event_history: Tuple[Dict[str, Any], ...]
     rules_version: str
+    created_at: str                 # ISO 8601 timestamp
 ```
+
+For complete field specifications, see [Data Models](./docs/data-models.md).
 
 ### GameRules
 
@@ -138,7 +146,7 @@ class GameRules:
 | `calculate_batting_average()` | Calculate batting average from player stats |
 | `calculate_era()` | Calculate earned run average for pitcher |
 | `calculate_player_stats()` | Generate comprehensive stats for a player |
-| `aggregate_season_stats()` | Aggregate stats across multiple games |
+| `aggregate_stats()` | Aggregate stats across multiple games |
 
 ### Multi-Game Archive Functions
 

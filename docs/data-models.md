@@ -534,6 +534,19 @@ class BattedBallResult(Enum):
 
 ```python
 class GameStatus(Enum):
+    """
+    Full enumeration of possible game statuses.
+    
+    Note: GameState.game_status field only uses a subset of these values:
+    - 'in_progress': Game is actively being played
+    - 'final': Game has completed normally
+    - 'suspended': Game was suspended and may be resumed
+    
+    The additional statuses are used in scheduling and archive contexts:
+    - 'not_started': Game has not begun (used in MultiGameArchive scheduling)
+    - 'postponed': Game was postponed before starting
+    - 'cancelled': Game was cancelled
+    """
     NOT_STARTED = 'not_started'
     IN_PROGRESS = 'in_progress'
     FINAL = 'final'
@@ -541,6 +554,8 @@ class GameStatus(Enum):
     POSTPONED = 'postponed'
     CANCELLED = 'cancelled'
 ```
+
+**GameState.game_status Valid Values**: Only `'in_progress'`, `'final'`, and `'suspended'` are valid for the `GameState.game_status` field. Other statuses are used for game scheduling and archive metadata.
 
 ---
 
@@ -556,7 +571,11 @@ TeamId: TypeAlias = Literal['home', 'away']
 """Team identifier."""
 
 BaseIndex: TypeAlias = Literal[0, 1, 2]
-"""Base index: 0=first, 1=second, 2=third."""
+"""Base index for base state: 0=first, 1=second, 2=third."""
+
+BaseOrHome: TypeAlias = Literal[0, 1, 2, 3]
+"""Base index including home plate: 0=first, 1=second, 2=third, 3=home.
+Used in runner advancement operations."""
 
 InningHalf: TypeAlias = Literal['top', 'bottom']
 """Half of an inning."""
