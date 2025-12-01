@@ -633,7 +633,7 @@ For applications exposing Baselom via REST API, use the following standardized e
     "actual_length": 3
   },
   "request_id": "req_abc123",
-  "timestamp": "2024-01-15T10:30:00Z"
+  "timestamp": "2025-12-15T10:30:00Z"
 }
 ```
 

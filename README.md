@@ -87,6 +87,8 @@ print(state.bases)  # ('a1', None, None)
 Immutable representation of the current game state:
 
 ```python
+from typing import Literal, Tuple, Dict, Optional, Any
+
 @dataclass(frozen=True)
 class GameState:
     inning: int                     # 1-based inning number

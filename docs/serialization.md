@@ -580,8 +580,24 @@ All serialized objects include version information to enable:
 - Validation against appropriate schema
 
 **Important**: There are two distinct version fields:
-- `rules_version`: Version of the game rules applied (in GameState)
-- `baselom_version`: Version of Baselom Core that created the archive (in MultiGameArchive)
+- `rules_version`: Version of the game rules applied (stored in GameState). Example: A game played with 2024 MLB rules would have `rules_version: "2024.1.0"`. This version stays with the game data forever.
+- `baselom_version`: Version of Baselom Core that created the archive (stored in MultiGameArchive). Example: `baselom_version: "1.2.0"`. This indicates which library version was used to serialize the data.
+
+```json
+// In GameState
+{
+  "inning": 5,
+  "rules_version": "2024.1.0",  // Rules used during game
+  ...
+}
+
+// In MultiGameArchive
+{
+  "archive_id": "season_2024",
+  "baselom_version": "1.2.0",   // Library version
+  "games": [...]
+}
+```
 
 ### JSON Schema Version
 

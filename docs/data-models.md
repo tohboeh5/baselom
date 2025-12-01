@@ -575,7 +575,15 @@ BaseIndex: TypeAlias = Literal[0, 1, 2]
 
 BaseOrHome: TypeAlias = Literal[0, 1, 2, 3]
 """Base index including home plate: 0=first, 1=second, 2=third, 3=home.
-Used in runner advancement operations."""
+
+Used in runner advancement operations where the destination can be home plate.
+This differs from BaseIndex which only represents occupied base positions (0-2).
+
+Example usage:
+    runner_advances: Dict[BaseIndex, BaseOrHome]  # from_base -> to_base
+    # {0: 2}  means runner on 1st advances to 3rd
+    # {2: 3}  means runner on 3rd scores (advances to home)
+"""
 
 InningHalf: TypeAlias = Literal['top', 'bottom']
 """Half of an inning."""
