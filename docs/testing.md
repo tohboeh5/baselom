@@ -455,6 +455,8 @@ class TestRosterManagement:
     
     def test_substitution_record(self):
         """Should record substitution correctly."""
+        state = create_valid_state()
+        request = create_substitution_request('p1', 'p2')
         state, event = force_substitution(state, request, rules)
         
         assert event.event_type == 'substitution'
@@ -477,6 +479,9 @@ class TestMultiGameArchive:
         """Should add game to archive."""
         archive = create_game_archive('test', 'Test')
         final_state = create_finished_game_state()
+        events = list(final_state.event_history)
+        home_roster = create_test_roster('home')
+        away_roster = create_test_roster('away')
         
         updated = add_game_to_archive(
             archive, final_state, events, home_roster, away_roster
