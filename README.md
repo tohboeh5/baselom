@@ -87,7 +87,7 @@ print(state.bases)  # ('a1', None, None)
 Immutable representation of the current game state:
 
 ```python
-from typing import Literal, Tuple, Dict, Optional, Any
+from typing import Literal, Tuple, Mapping, Optional, Any
 
 @dataclass(frozen=True)
 class GameState:
@@ -97,19 +97,19 @@ class GameState:
     balls: int                      # 0..3
     strikes: int                    # 0..2
     bases: Tuple[Optional[str], Optional[str], Optional[str]]
-    score: Dict[str, int]           # {'home': int, 'away': int}
+    score: Mapping[str, int]        # {'home': int, 'away': int}
     batting_team: Literal['home', 'away']
     fielding_team: Literal['home', 'away']
     current_pitcher_id: Optional[str]
     current_batter_id: Optional[str]
-    lineup_index: Dict[str, int]    # {'home': 0-8, 'away': 0-8}
-    lineups: Dict[str, Tuple[str, ...]]
-    pitchers: Dict[str, str]        # {'home': pitcher_id, 'away': pitcher_id}
-    inning_runs: Dict[str, int]
+    lineup_index: Mapping[str, int] # {'home': 0-8, 'away': 0-8}
+    lineups: Mapping[str, Tuple[str, ...]]
+    pitchers: Mapping[str, str]     # {'home': pitcher_id, 'away': pitcher_id}
+    inning_runs: Mapping[str, int]
     game_status: Literal['in_progress', 'final', 'suspended']
-    event_history: Tuple[Dict[str, Any], ...]
+    event_history: Tuple[Mapping[str, Any], ...]  # Event references (may be event_ids)
     rules_version: str
-    created_at: str                 # ISO 8601 timestamp
+    created_at: str                 # ISO 8601 timestamp (UTC with Z suffix)
 ```
 
 For complete field specifications, see [Data Models](./docs/data-models.md).

@@ -83,7 +83,7 @@ def apply_pitch(
     pitch_result: Union[str, PitchResult],
     rules: GameRules,
     batted_ball_result: Optional[Union[str, BattedBallResult]] = None,
-    runner_advances: Optional[Dict[int, int]] = None
+    runner_advances: Optional[Mapping[int, int]] = None
 ) -> Tuple[GameState, Event]
 ```
 
@@ -95,7 +95,34 @@ def apply_pitch(
 | `pitch_result` | `str` or `PitchResult` | Yes | Pitch outcome |
 | `rules` | `GameRules` | Yes | Rule configuration |
 | `batted_ball_result` | `str` or `BattedBallResult` | No | Result if ball is in play |
-| `runner_advances` | `Dict[int, int]` | No | Manual runner advancement {from_base: to_base} using 0-based indices (0=1st, 1=2nd, 2=3rd, 3=home) |
+| `runner_advances` | `Mapping[int, int]` | No | Override runner advancement (see note below) |
+
+#### Runner Advances Parameter
+
+The `runner_advances` parameter allows **explicit specification** of runner movement, overriding the engine's default behavior.
+
+**When to use**:
+- Real game scoring where actual runner movement differs from typical patterns
+- Simulation scenarios requiring specific outcomes
+- Testing edge cases
+
+**Default behavior** (when `runner_advances` is `None`):
+- Engine computes standard runner advancement based on `batted_ball_result`
+- E.g., single typically advances runners 1-2 bases
+
+**Design Note**: For simulation use cases, prefer letting the engine compute advances. For real game scoring where the actual outcome is known, provide explicit advances.
+
+```python
+# Engine computes default advances (simulation mode)
+state, event = apply_pitch(state, 'in_play', rules, batted_ball_result='single')
+
+# Explicit advances (real game scoring mode)
+state, event = apply_pitch(
+    state, 'in_play', rules,
+    batted_ball_result='single',
+    runner_advances={2: 4}  # Runner on 3rd (index 2) scores (4=home)
+)
+```
 
 #### Pitch Results
 
@@ -138,9 +165,9 @@ def apply_pitch(
 # Process a ball
 state, event = apply_pitch(state, 'ball', rules)
 assert state.balls == 1
-assert event.event_type == 'ball'
+assert event.envelope.event_type == 'pitch.v1'
 
-# Process a single
+# Process a single (engine computes runner advances)
 state, event = apply_pitch(
     state, 
     'in_play', 
@@ -148,7 +175,7 @@ state, event = apply_pitch(
     batted_ball_result='single'
 )
 assert state.bases[0] == state.current_batter_id
-assert event.event_type == 'single'
+assert event.envelope.event_type == 'hit.v1'
 ```
 
 ---

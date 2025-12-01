@@ -726,6 +726,8 @@ let game_rules: GameRules = serde_json::from_str(&rules_json)?;
 
 ### Complete GameState Example
 
+Note: The `event_history` field may contain full event objects (legacy format) or event references/IDs (optimized format). For scalable deployments, use the [Event History Storage Architecture](#event-history-storage-architecture).
+
 ```json
 {
   "inning": 5,
@@ -761,14 +763,24 @@ let game_rules: GameRules = serde_json::from_str(&rules_json)?;
   "game_status": "in_progress",
   "event_history": [
     {
-      "event_type": "single",
-      "event_id": "550e8400-e29b-41d4-a716-446655440000",
-      "timestamp": "2024-01-15T14:30:00Z",
-      "inning": 5,
-      "top": false,
-      "batter_id": "batter_21",
-      "pitcher_id": "pitcher_88",
-      "rbi": 1
+      "envelope": {
+        "event_id": "a1b2c3d4e5f6789012345678901234567890123456789012345678901234abcd",
+        "event_type": "hit.v1",
+        "schema_version": "1",
+        "created_at": "2024-01-15T14:30:00Z"
+      },
+      "payload": {
+        "game_id": "game-20240115",
+        "inning": 5,
+        "top": false,
+        "outs_before": 0,
+        "batter_id": "batter_21",
+        "pitcher_id": "pitcher_88",
+        "hit_type": "single",
+        "runner_advances": [
+          {"runner_id": "batter_21", "from_base": 0, "to_base": 1}
+        ]
+      }
     }
   ],
   "rules_version": "1.0.0",
