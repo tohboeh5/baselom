@@ -4,7 +4,19 @@
 
 Baselom Core follows [Semantic Versioning 2.0.0](https://semver.org/) (SemVer) for all releases. This document defines the versioning policy, compatibility guarantees, and migration guidelines.
 
-## Version Format
+## Version Types
+
+Baselom uses **three distinct version identifiers**:
+
+| Version | Location | Purpose |
+|---------|----------|---------|
+| **Library Version** (SemVer) | Package metadata, `__version__` | Baselom Core release version |
+| **Event Schema Version** | Event envelope `schema_version` | Version of event payload structure |
+| **Rules Version** | `GameState.rules_version` | Baseball rules variant (e.g., "2024 MLB rules") |
+
+See [Serialization - Version Types](./serialization.md#version-types) for detailed explanation.
+
+## Library Version Format
 
 ```
 MAJOR.MINOR.PATCH[-PRERELEASE][+BUILD]
@@ -38,6 +50,31 @@ Examples:
 | Add new event type `balk` | MINOR | Non-breaking - additive |
 | Fix RBI calculation bug | PATCH | Non-breaking - bug fix |
 | Improve `validate_state()` performance by 50% | PATCH | Non-breaking - optimization |
+
+## Event Schema Versioning
+
+Event payloads have their own schema version, tracked in the event envelope:
+
+```json
+{
+  "envelope": {
+    "event_type": "hit.v1",
+    "schema_version": "1",
+    ...
+  }
+}
+```
+
+**Important**: `schema_version` is included in `event_id` calculation. Events with different schema versions have different IDs, even if the payload content is logically equivalent.
+
+### Schema Version Changes
+
+| Change Type | Schema Version Impact |
+|-------------|----------------------|
+| Add optional field to payload | MINOR (new consumers can use, old ignore) |
+| Remove field from payload | MAJOR (breaks old consumers) |
+| Change field type | MAJOR |
+| Rename field | MAJOR |
 
 ## Compatibility Policy
 

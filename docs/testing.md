@@ -357,15 +357,15 @@ class TestValidation:
 ```python
 class TestPerformance:
     def test_apply_pitch_latency(self, benchmark):
-        """apply_pitch should complete in under 1μs."""
+        """apply_pitch should complete in under 100μs (target from architecture.md)."""
         state = create_valid_state()
         
         result = benchmark(lambda: apply_pitch(state, 'ball', rules))
         
-        assert result.stats.mean < 0.000001  # 1μs
+        assert result.stats.mean < 0.0001  # 100μs
     
     def test_full_game_simulation(self, benchmark):
-        """Full 9-inning game should simulate in under 1ms."""
+        """Full 9-inning game should simulate in under 50ms (target from architecture.md)."""
         def simulate_game():
             state = initial_game_state(...)
             while state.game_status != 'final':
@@ -374,7 +374,7 @@ class TestPerformance:
         
         result = benchmark(simulate_game)
         
-        assert result.stats.mean < 0.001  # 1ms
+        assert result.stats.mean < 0.05  # 50ms
 ```
 
 ### 7. Statistics Tests
@@ -527,6 +527,123 @@ class TestMultiGameArchive:
         )
         
         assert all('2024-06' in g.date for g in games)
+```
+
+### 10. Serialization Tests
+
+```python
+class TestSerialization:
+    def test_canonical_json_determinism(self):
+        """canonical_json_bytes should produce identical output for same input."""
+        payload = {
+            'batter_id': 'player_1',
+            'pitcher_id': 'player_2',
+            'inning': 5,
+            'top': True
+        }
+        
+        result1 = canonical_json_bytes(payload)
+        result2 = canonical_json_bytes(payload)
+        
+        assert result1 == result2
+    
+    def test_canonical_json_key_ordering(self):
+        """Keys should be sorted lexicographically."""
+        payload = {'zebra': 1, 'apple': 2, 'banana': 3}
+        result = canonical_json_bytes(payload)
+        
+        # Keys should appear in order: apple, banana, zebra
+        assert result == b'{"apple":2,"banana":3,"zebra":1}'
+    
+    def test_canonical_json_no_whitespace(self):
+        """Canonical JSON should have no whitespace."""
+        payload = {'key': 'value', 'number': 42}
+        result = canonical_json_bytes(payload)
+        
+        assert b' ' not in result
+        assert b'\n' not in result
+    
+    def test_event_id_excludes_timestamp(self):
+        """event_id should be identical regardless of created_at."""
+        payload = {'batter_id': 'p1', 'inning': 1, 'top': True}
+        
+        id1 = generate_event_id(payload, 'hit.v1', '1')
+        id2 = generate_event_id(payload, 'hit.v1', '1')
+        
+        # Same payload = same ID
+        assert id1 == id2
+    
+    def test_event_id_changes_with_schema_version(self):
+        """Different schema versions should produce different event_ids."""
+        payload = {'batter_id': 'p1', 'inning': 1, 'top': True}
+        
+        id_v1 = generate_event_id(payload, 'hit.v1', '1')
+        id_v2 = generate_event_id(payload, 'hit.v1', '2')
+        
+        assert id_v1 != id_v2
+    
+    def test_state_hash_ignores_timestamps(self):
+        """State hashes should be equal when only timestamps differ."""
+        state1 = {'inning': 1, 'outs': 0, 'created_at': '2024-01-01T10:00:00Z'}
+        state2 = {'inning': 1, 'outs': 0, 'created_at': '2024-01-02T15:30:00Z'}
+        
+        assert states_equal_ignoring_time(state1, state2)
+    
+    def test_state_hash_detects_differences(self):
+        """State hashes should differ when game state differs."""
+        state1 = {'inning': 1, 'outs': 0, 'created_at': '2024-01-01T10:00:00Z'}
+        state2 = {'inning': 1, 'outs': 1, 'created_at': '2024-01-01T10:00:00Z'}
+        
+        assert not states_equal_ignoring_time(state1, state2)
+```
+
+### 11. Cross-Platform Interoperability Tests
+
+```python
+class TestCrossplatformInterop:
+    """Tests to ensure Python and Rust produce identical serialization."""
+    
+    def test_python_rust_canonical_json_match(self):
+        """Python and Rust should produce identical canonical JSON."""
+        payload = {
+            'game_id': 'test-game',
+            'inning': 3,
+            'top': False,
+            'batter_id': 'player_42',
+            'pitcher_id': 'player_17'
+        }
+        
+        python_bytes = canonical_json_bytes(payload)
+        rust_bytes = rust_canonical_json_bytes(payload)  # Via PyO3
+        
+        assert python_bytes == rust_bytes
+    
+    def test_python_rust_event_id_match(self):
+        """Python and Rust should generate identical event_ids."""
+        payload = {'game_id': 'g1', 'inning': 1, 'top': True}
+        
+        python_id = generate_event_id(payload, 'hit.v1', '1')
+        rust_id = rust_generate_event_id(payload, 'hit.v1', '1')  # Via PyO3
+        
+        assert python_id == rust_id
+    
+    def test_state_serialization_roundtrip(self):
+        """State should survive Python -> Rust -> Python roundtrip."""
+        original = create_valid_state()
+        
+        # Serialize in Python
+        python_json = serialize_state(original)
+        
+        # Process in Rust and back
+        rust_processed = rust_process_state(python_json)
+        
+        # Deserialize back in Python
+        restored = deserialize_state(rust_processed)
+        
+        assert states_equal_ignoring_time(
+            serialize_state(original),
+            serialize_state(restored)
+        )
 ```
 
 ## Test Fixtures

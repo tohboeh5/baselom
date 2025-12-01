@@ -260,28 +260,76 @@ Transitions:
 
 ### 4. Event Sourcing
 
-Every state change produces an event:
+Every state change produces an event with **envelope/payload structure**:
 
 ```json
 {
-  "type": "single",
-  "timestamp": "2024-01-15T10:30:00Z",
-  "inning": 3,
-  "top": true,
-  "batter": "player_123",
-  "pitcher": "player_456",
-  "runners_advanced": [
-    {"runner": "player_789", "from": 1, "to": 3}
-  ],
-  "rbi": 0
+  "envelope": {
+    "event_id": "a1b2c3d4...",
+    "event_type": "hit.v1",
+    "schema_version": "1",
+    "created_at": "2024-01-15T10:30:00Z"
+  },
+  "payload": {
+    "game_id": "game-001",
+    "inning": 3,
+    "top": true,
+    "batter_id": "player_123",
+    "pitcher_id": "player_456",
+    "hit_type": "single",
+    "runner_advances": [
+      {"runner_id": "player_789", "from_base": 1, "to_base": 3}
+    ]
+  }
 }
 ```
 
+**Key Design Decisions:**
+- `event_id` is **content-based** (SHA-256 of payload), not a UUID
+- Timestamps are in envelope, NOT in the ID calculation
+- Payload contains only **essential facts**, not derived values (no `rbi`)
+- Same logical event always produces same `event_id`
+
 Events enable:
 - Full game replay
+- Semantic equality detection (same play = same ID)
+- Deduplication in storage
 - Analytics and statistics
-- Undo/redo functionality
 - External system integration
+
+### 5. Content-Addressed Storage
+
+Events and snapshots use **content-addressed identification**:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Event Storage Architecture                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌─────────────────┐         ┌─────────────────────────────┐   │
+│  │  Events Index   │         │      Payload Store          │   │
+│  │ (sequence_num,  │────────▶│  (event_id → payload_bytes) │   │
+│  │  event_id)      │         │  Content-addressed          │   │
+│  └─────────────────┘         └─────────────────────────────┘   │
+│           │                                                      │
+│           │ Periodic                                            │
+│           ▼                                                      │
+│  ┌─────────────────────────────┐                                │
+│  │     Snapshot Store          │                                │
+│  │  (snapshot_id → state)      │                                │
+│  │  For fast replay            │                                │
+│  └─────────────────────────────┘                                │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+Benefits:
+- **Deduplication**: Identical payloads share storage
+- **Immutability**: Append-only, no overwrites
+- **Integrity**: Hash-based IDs enable verification
+- **Fast Replay**: Snapshots skip replaying old events
+
+See [Serialization - Event History Storage Architecture](./serialization.md#event-history-storage-architecture) for details.
 
 ## Component Details
 
@@ -297,6 +345,7 @@ Events enable:
 | `statistics.rs` | Statistics calculation logic |
 | `roster.rs` | Roster and player management |
 | `archive.rs` | Multi-game archive handling |
+| `serializer.rs` | Canonical JSON and hashing |
 
 ### Python Layer (`baselom_core/`)
 
@@ -306,7 +355,7 @@ Events enable:
 | `models.py` | Python dataclass definitions, type hints |
 | `engine.py` | Wrapper functions around Rust core |
 | `validators.py` | Additional Python-side validation |
-| `serializer.py` | JSON serialization/deserialization |
+| `serializer.py` | JSON serialization/deserialization, canonical JSON |
 | `exceptions.py` | Python exception hierarchy |
 | `statistics.py` | Statistics functions and aggregation |
 | `roster.py` | Roster management functions |

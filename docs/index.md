@@ -42,10 +42,11 @@ Baselom Core is designed for both **game simulations** and **real-world game man
 | Principle | Description |
 |-----------|-------------|
 | **Single Responsibility** | Only handles rule compliance and state transitions |
-| **Purity** | `GameState` is immutable; changes return new instances |
+| **Deep Immutability** | `GameState` and all nested objects are immutable; uses `Tuple`, `Mapping` instead of `List`, `Dict` |
 | **Testability** | Fine-grained test coverage (>90% target) |
 | **Configurability** | Rules externalized via `GameRules` |
-| **Event-Oriented** | All plays output as JSON-serializable `Event` objects |
+| **Event-Oriented** | All plays output as envelope/payload `Event` objects with content-based IDs |
+| **Deterministic Serialization** | Canonical JSON (RFC 8785) enables content-addressed storage and semantic comparison |
 | **High Performance** | Rust core with multiple platform bindings |
 | **Multi-Platform** | WASM-first design enabling browser, Node.js, Python, and native execution |
 | **Versatility** | Suitable for both game simulations and real-world score management |
@@ -77,17 +78,16 @@ Baselom Core is designed for both **game simulations** and **real-world game man
 
 | Document | Description |
 |----------|-------------|
-| [Serialization](./serialization.md) | JSON schemas, serialization/deserialization functions, versioning, migration |
+| [Serialization](./serialization.md) | Canonical JSON, content-based IDs, event envelope/payload structure, versioning, migration, event history storage |
 | [Error Handling](./error-handling.md) | Exception hierarchy, error codes, handling patterns, Rust-Python error propagation |
 
 ### Development
 
 | Document | Description |
 |----------|-------------|
-| [Testing](./testing.md) | Test strategy, test categories, fixtures, coverage targets, CI testing |
+| [Testing](./testing.md) | Test strategy, test categories, fixtures, coverage targets, CI testing, cross-platform interoperability tests |
 | [Development Guide](./development.md) | Environment setup, build commands, debugging, CI/CD pipeline, contribution guidelines |
 | [Versioning](./versioning.md) | Semantic versioning policy, compatibility guarantees, deprecation process, migration |
-| [Specification Fixes](./SPECIFICATION_FIXES.md) | Summary of inconsistencies found and fixes applied to documentation |
 
 ## Quick Start
 
