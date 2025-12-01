@@ -63,15 +63,19 @@ Use `json.dumps()` with specific parameters or a dedicated library:
 
 ```python
 import json
+from typing import Mapping, Any
 
-def canonical_json_bytes(payload: dict) -> bytes:
+def canonical_json_bytes(payload: Mapping[str, Any]) -> bytes:
     """Convert payload to canonical JSON bytes.
+    
+    Args:
+        payload: Data structure to serialize (dict, Mapping, etc.)
     
     Note: For production use, consider using a dedicated RFC 8785 library
     such as `canonicaljson` for full compliance including float handling.
     """
     return json.dumps(
-        payload,
+        dict(payload),  # Convert Mapping to dict for json.dumps
         separators=(',', ':'),
         sort_keys=True,
         ensure_ascii=False
@@ -211,33 +215,59 @@ To compare game states for semantic equality (ignoring timestamps), states must 
 ```python
 import hashlib
 import copy
+from typing import Mapping, Any
 
 TIME_FIELDS = {'created_at', 'updated_at', 'timestamp', 'ingested_at'}
 
-def normalize_state(state: dict) -> dict:
-    """Remove time-like fields from state for comparison."""
-    def remove_time_fields(obj):
-        if isinstance(obj, dict):
+def normalize_state(state: Mapping[str, Any]) -> dict:
+    """Remove time-like fields from state for comparison.
+    
+    Args:
+        state: State to normalize (accepts dict, Mapping, etc.)
+    
+    Returns:
+        dict with time fields removed recursively
+    """
+    def remove_time_fields(obj: Any) -> Any:
+        if isinstance(obj, Mapping):
             return {
                 k: remove_time_fields(v) 
                 for k, v in obj.items() 
                 if k not in TIME_FIELDS
             }
-        elif isinstance(obj, list):
+        elif isinstance(obj, (list, tuple)):
             return [remove_time_fields(item) for item in obj]
         else:
             return obj
     
-    return remove_time_fields(copy.deepcopy(state))
+    return remove_time_fields(dict(state))
 
-def state_hash(state: dict) -> str:
-    """Compute hash of normalized state for comparison."""
+def state_hash(state: Mapping[str, Any]) -> str:
+    """Compute hash of normalized state for comparison.
+    
+    Args:
+        state: State to hash (accepts dict, Mapping, etc.)
+    
+    Returns:
+        SHA-256 hex digest of normalized, canonicalized state
+    """
     normalized = normalize_state(state)
     canonical_bytes = canonical_json_bytes(normalized)
     return hashlib.sha256(canonical_bytes).hexdigest()
 
-def states_equal_ignoring_time(state1: dict, state2: dict) -> bool:
-    """Check if two states are semantically equal (ignoring timestamps)."""
+def states_equal_ignoring_time(
+    state1: Mapping[str, Any], 
+    state2: Mapping[str, Any]
+) -> bool:
+    """Check if two states are semantically equal (ignoring timestamps).
+    
+    Args:
+        state1: First state to compare
+        state2: Second state to compare
+    
+    Returns:
+        True if states are semantically equal
+    """
     return state_hash(state1) == state_hash(state2)
 ```
 

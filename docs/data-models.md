@@ -27,14 +27,15 @@ from dataclasses import dataclass
 class ImmutableExample:
     items: Tuple[str, ...]           # Not List[str]
     metadata: Mapping[str, str]       # Not Dict[str, str]
-    
-    def __post_init__(self):
-        # Ensure metadata is truly immutable
-        if not isinstance(self.metadata, MappingProxyType):
-            object.__setattr__(
-                self, 'metadata', 
-                MappingProxyType(dict(self.metadata))
-            )
+
+# Factory function to ensure immutability from construction
+def create_immutable_example(
+    items: Tuple[str, ...],
+    metadata: Mapping[str, str]
+) -> ImmutableExample:
+    """Create ImmutableExample with guaranteed immutable metadata."""
+    immutable_metadata = MappingProxyType(dict(metadata))
+    return ImmutableExample(items=items, metadata=immutable_metadata)
 ```
 
 ### Rust Implementation
