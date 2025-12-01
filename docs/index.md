@@ -10,8 +10,22 @@ Baselom Core is a lightweight, pure game-state engine for baseball that implemen
 - Base/runner state management
 - Scoring
 - Substitutions
+- **Statistics calculation** (batting average, ERA, etc.)
+- **Multi-game data archiving**
+- **Roster and player state management**
 
 All implemented as an **immutable, testable Finite State Machine (FSM)**.
+
+## Use Cases
+
+Baselom Core is designed for both **game simulations** and **real-world game management**:
+
+| Use Case | Description |
+|----------|-------------|
+| **⚾ Real Game Score Management** | Track actual baseball games with official scoring, substitutions, and statistics |
+| **🎮 Game Simulations** | Build baseball video games, fantasy baseball engines, or AI training environments |
+| **📊 Statistics & Analytics** | Calculate batting averages, ERA, and other statistics across multiple games |
+| **📝 Score Archiving** | Store and replay complete game data using Baselom's multi-game archive format |
 
 ## Release Roadmap
 
@@ -34,6 +48,7 @@ All implemented as an **immutable, testable Finite State Machine (FSM)**.
 | **Event-Oriented** | All plays output as JSON-serializable `Event` objects |
 | **High Performance** | Rust core with multiple platform bindings |
 | **Multi-Platform** | WASM-first design enabling browser, Node.js, Python, and native execution |
+| **Versatility** | Suitable for both game simulations and real-world score management |
 
 ## Documentation Index
 
@@ -42,8 +57,15 @@ All implemented as an **immutable, testable Finite State Machine (FSM)**.
 | Document | Description |
 |----------|-------------|
 | [Architecture](./architecture.md) | System architecture, component design, Rust/Python hybrid structure, data flow diagrams |
-| [Data Models](./data-models.md) | Complete specifications for `GameState`, `GameRules`, `Event`, and all enumerations |
+| [Data Models](./data-models.md) | Complete specifications for `GameState`, `GameRules`, `Event`, roster, and statistics models |
 | [API Reference](./api-reference.md) | Public function signatures, parameters, return types, and usage examples |
+
+### Statistics & Multi-Game
+
+| Document | Description |
+|----------|-------------|
+| [Statistics](./data-models.md#statistics-models) | Player statistics models, calculation methods, aggregation across games |
+| [Multi-Game Archive](./serialization.md#multi-game-archive-format) | JSON format for storing multiple games with metadata |
 
 ### Rules & Logic
 

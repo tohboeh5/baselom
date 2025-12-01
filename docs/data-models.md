@@ -567,6 +567,541 @@ Bases: TypeAlias = Tuple[Optional[PlayerId], Optional[PlayerId], Optional[Player
 
 ---
 
+## Statistics Models
+
+### PlayerBattingStats
+
+Batting statistics for a player.
+
+```python
+@dataclass(frozen=True)
+class PlayerBattingStats:
+    """Batting statistics for a single player."""
+    
+    player_id: str
+    """Player identifier."""
+    
+    # Plate Appearance Stats
+    plate_appearances: int = 0
+    """Total plate appearances."""
+    
+    at_bats: int = 0
+    """Official at-bats (PA minus walks, HBP, sacrifices)."""
+    
+    # Hit Stats
+    hits: int = 0
+    """Total hits."""
+    
+    singles: int = 0
+    """Number of singles."""
+    
+    doubles: int = 0
+    """Number of doubles."""
+    
+    triples: int = 0
+    """Number of triples."""
+    
+    home_runs: int = 0
+    """Number of home runs."""
+    
+    # Production Stats
+    runs: int = 0
+    """Runs scored."""
+    
+    rbi: int = 0
+    """Runs batted in."""
+    
+    # Discipline Stats
+    walks: int = 0
+    """Base on balls."""
+    
+    strikeouts: int = 0
+    """Strikeouts."""
+    
+    hit_by_pitch: int = 0
+    """Times hit by pitch."""
+    
+    # Calculated Properties
+    @property
+    def batting_average(self) -> float:
+        """Calculate batting average (H/AB)."""
+        return self.hits / self.at_bats if self.at_bats > 0 else 0.0
+    
+    @property
+    def on_base_percentage(self) -> float:
+        """Calculate on-base percentage."""
+        total = self.at_bats + self.walks + self.hit_by_pitch
+        if total == 0:
+            return 0.0
+        return (self.hits + self.walks + self.hit_by_pitch) / total
+    
+    @property
+    def slugging_percentage(self) -> float:
+        """Calculate slugging percentage."""
+        if self.at_bats == 0:
+            return 0.0
+        total_bases = (self.singles + 2 * self.doubles + 
+                      3 * self.triples + 4 * self.home_runs)
+        return total_bases / self.at_bats
+    
+    @property
+    def ops(self) -> float:
+        """Calculate OPS (OBP + SLG)."""
+        return self.on_base_percentage + self.slugging_percentage
+```
+
+---
+
+### PlayerPitchingStats
+
+Pitching statistics for a player.
+
+```python
+@dataclass(frozen=True)
+class PlayerPitchingStats:
+    """Pitching statistics for a single player."""
+    
+    player_id: str
+    """Player identifier."""
+    
+    # Appearance Stats
+    games: int = 0
+    """Games pitched."""
+    
+    games_started: int = 0
+    """Games started as pitcher."""
+    
+    innings_pitched: float = 0.0
+    """Innings pitched (fractional, e.g., 6.2 = 6 2/3 innings)."""
+    
+    # Result Stats
+    wins: int = 0
+    """Wins."""
+    
+    losses: int = 0
+    """Losses."""
+    
+    saves: int = 0
+    """Saves."""
+    
+    # Performance Stats
+    hits_allowed: int = 0
+    """Hits allowed."""
+    
+    runs_allowed: int = 0
+    """Runs allowed."""
+    
+    earned_runs: int = 0
+    """Earned runs allowed."""
+    
+    walks_allowed: int = 0
+    """Walks issued."""
+    
+    strikeouts: int = 0
+    """Strikeouts."""
+    
+    home_runs_allowed: int = 0
+    """Home runs allowed."""
+    
+    # Pitch Count
+    pitches_thrown: int = 0
+    """Total pitches thrown."""
+    
+    # Calculated Properties
+    @property
+    def era(self) -> float:
+        """Calculate earned run average."""
+        if self.innings_pitched == 0:
+            return 0.0
+        return (self.earned_runs * 9) / self.innings_pitched
+    
+    @property
+    def whip(self) -> float:
+        """Calculate WHIP (Walks + Hits per Inning Pitched)."""
+        if self.innings_pitched == 0:
+            return 0.0
+        return (self.walks_allowed + self.hits_allowed) / self.innings_pitched
+    
+    @property
+    def strikeout_rate(self) -> float:
+        """Calculate K/9 (strikeouts per 9 innings)."""
+        if self.innings_pitched == 0:
+            return 0.0
+        return (self.strikeouts * 9) / self.innings_pitched
+```
+
+---
+
+### PlayerFieldingStats
+
+Fielding statistics for a player.
+
+```python
+@dataclass(frozen=True)
+class PlayerFieldingStats:
+    """Fielding statistics for a single player."""
+    
+    player_id: str
+    """Player identifier."""
+    
+    position: str
+    """Primary fielding position."""
+    
+    games: int = 0
+    """Games played at position."""
+    
+    innings: float = 0.0
+    """Innings played at position."""
+    
+    putouts: int = 0
+    """Putouts."""
+    
+    assists: int = 0
+    """Assists."""
+    
+    errors: int = 0
+    """Errors committed."""
+    
+    double_plays: int = 0
+    """Double plays participated in."""
+    
+    @property
+    def fielding_percentage(self) -> float:
+        """Calculate fielding percentage."""
+        total_chances = self.putouts + self.assists + self.errors
+        if total_chances == 0:
+            return 0.0
+        return (self.putouts + self.assists) / total_chances
+```
+
+---
+
+### GamePlayerStats
+
+Combined statistics for a player in a single game.
+
+```python
+@dataclass(frozen=True)
+class GamePlayerStats:
+    """Statistics for a player in a single game."""
+    
+    player_id: str
+    """Player identifier."""
+    
+    game_id: str
+    """Game identifier."""
+    
+    team: Literal['home', 'away']
+    """Team the player was on."""
+    
+    batting: Optional[PlayerBattingStats] = None
+    """Batting stats for this game."""
+    
+    pitching: Optional[PlayerPitchingStats] = None
+    """Pitching stats for this game (if applicable)."""
+    
+    fielding: Optional[PlayerFieldingStats] = None
+    """Fielding stats for this game."""
+    
+    started: bool = False
+    """Whether player started the game."""
+    
+    entered_game: bool = True
+    """Whether player entered the game."""
+    
+    batting_order: Optional[int] = None
+    """Position in batting order (0-8, None if didn't bat)."""
+```
+
+---
+
+## Roster Models
+
+### PlayerStatus
+
+Status of a player on the roster.
+
+```python
+class PlayerStatus(Enum):
+    """Status of a player on the roster."""
+    
+    ACTIVE = 'active'
+    """Player is on active roster and available to play."""
+    
+    BENCH = 'bench'
+    """Player is on bench, available as substitute."""
+    
+    INJURED = 'injured'
+    """Player is injured and not available."""
+    
+    INACTIVE = 'inactive'
+    """Player is on inactive list."""
+    
+    STARTING = 'starting'
+    """Player is in starting lineup for current game."""
+    
+    SUBSTITUTED_OUT = 'substituted_out'
+    """Player was substituted out of current game."""
+```
+
+---
+
+### Player
+
+Player information and current status.
+
+```python
+@dataclass(frozen=True)
+class Player:
+    """Player information."""
+    
+    player_id: str
+    """Unique player identifier."""
+    
+    name: str
+    """Player display name."""
+    
+    number: Optional[int] = None
+    """Jersey number."""
+    
+    positions: Tuple[str, ...] = ()
+    """Positions player can play (e.g., ('P', 'OF'))."""
+    
+    bats: Literal['L', 'R', 'S'] = 'R'
+    """Batting hand (Left, Right, Switch)."""
+    
+    throws: Literal['L', 'R'] = 'R'
+    """Throwing hand."""
+```
+
+---
+
+### RosterEntry
+
+Entry in a team roster.
+
+```python
+@dataclass(frozen=True)
+class RosterEntry:
+    """Entry for a player on a team roster."""
+    
+    player: Player
+    """Player information."""
+    
+    status: PlayerStatus = PlayerStatus.ACTIVE
+    """Current player status."""
+    
+    current_position: Optional[str] = None
+    """Current defensive position (if in game)."""
+    
+    games_played: int = 0
+    """Games played this season."""
+    
+    season_batting_stats: Optional[PlayerBattingStats] = None
+    """Accumulated batting stats for season."""
+    
+    season_pitching_stats: Optional[PlayerPitchingStats] = None
+    """Accumulated pitching stats for season."""
+```
+
+---
+
+### Roster
+
+Complete team roster.
+
+```python
+@dataclass(frozen=True)
+class Roster:
+    """Complete roster for a team."""
+    
+    team_id: str
+    """Team identifier."""
+    
+    team_name: str
+    """Team display name."""
+    
+    players: Tuple[RosterEntry, ...]
+    """All players on roster."""
+    
+    def get_active_players(self) -> Tuple[RosterEntry, ...]:
+        """Get players available to play."""
+        return tuple(p for p in self.players 
+                    if p.status in (PlayerStatus.ACTIVE, PlayerStatus.BENCH))
+    
+    def get_player(self, player_id: str) -> Optional[RosterEntry]:
+        """Get a specific player by ID."""
+        for entry in self.players:
+            if entry.player.player_id == player_id:
+                return entry
+        return None
+```
+
+---
+
+### SubstitutionRecord
+
+Record of a substitution during a game.
+
+```python
+@dataclass(frozen=True)
+class SubstitutionRecord:
+    """Record of a player substitution."""
+    
+    game_id: str
+    """Game identifier."""
+    
+    inning: int
+    """Inning when substitution occurred."""
+    
+    top: bool
+    """Half of inning."""
+    
+    team: Literal['home', 'away']
+    """Team making substitution."""
+    
+    player_out_id: str
+    """Player removed from game."""
+    
+    player_in_id: str
+    """Player entering game."""
+    
+    position: str
+    """Defensive position."""
+    
+    batting_order: int
+    """Batting order position (0-8)."""
+    
+    timestamp: str
+    """ISO 8601 timestamp."""
+```
+
+---
+
+## Multi-Game Archive Models
+
+### GameRecord
+
+Complete record of a single game for archiving.
+
+```python
+@dataclass(frozen=True)
+class GameRecord:
+    """Complete record of a baseball game."""
+    
+    game_id: str
+    """Unique game identifier."""
+    
+    date: str
+    """Game date (ISO 8601 date)."""
+    
+    home_team: str
+    """Home team identifier."""
+    
+    away_team: str
+    """Away team identifier."""
+    
+    final_state: GameState
+    """Final game state."""
+    
+    events: Tuple[Event, ...]
+    """All events in chronological order."""
+    
+    player_stats: Tuple[GamePlayerStats, ...]
+    """Statistics for all players who participated."""
+    
+    substitutions: Tuple[SubstitutionRecord, ...]
+    """All substitutions made during game."""
+    
+    rules: GameRules
+    """Rules used for this game."""
+    
+    metadata: Dict[str, Any]
+    """Additional game metadata (venue, weather, etc.)."""
+```
+
+---
+
+### MultiGameArchive
+
+Archive containing multiple games.
+
+```python
+@dataclass(frozen=True)
+class MultiGameArchive:
+    """Archive of multiple baseball games."""
+    
+    archive_id: str
+    """Unique archive identifier."""
+    
+    name: str
+    """Archive name (e.g., '2024 Season', 'Tournament')."""
+    
+    description: str
+    """Archive description."""
+    
+    games: Tuple[GameRecord, ...]
+    """All games in the archive."""
+    
+    rosters: Dict[str, Roster]
+    """Rosters by team_id."""
+    
+    created_at: str
+    """ISO 8601 timestamp of archive creation."""
+    
+    updated_at: str
+    """ISO 8601 timestamp of last update."""
+    
+    baselom_version: str
+    """Baselom version used to create archive."""
+    
+    def get_games_by_team(self, team_id: str) -> Tuple[GameRecord, ...]:
+        """Get all games for a specific team."""
+        return tuple(g for g in self.games 
+                    if g.home_team == team_id or g.away_team == team_id)
+    
+    def get_games_by_date_range(
+        self, 
+        start_date: str, 
+        end_date: str
+    ) -> Tuple[GameRecord, ...]:
+        """Get games within a date range."""
+        return tuple(g for g in self.games 
+                    if start_date <= g.date <= end_date)
+```
+
+---
+
+### SeasonStats
+
+Aggregated statistics for a season or period.
+
+```python
+@dataclass(frozen=True)
+class SeasonStats:
+    """Aggregated statistics across multiple games."""
+    
+    player_id: str
+    """Player identifier."""
+    
+    period_name: str
+    """Name of period (e.g., '2024 Season', 'June 2024')."""
+    
+    games_played: int
+    """Total games played."""
+    
+    batting: PlayerBattingStats
+    """Aggregated batting statistics."""
+    
+    pitching: Optional[PlayerPitchingStats] = None
+    """Aggregated pitching statistics (if applicable)."""
+    
+    fielding: Optional[PlayerFieldingStats] = None
+    """Aggregated fielding statistics."""
+```
+
+---
+
 ## JSON Schema
 
 All models can be serialized to JSON. See [Serialization](./serialization.md) for detailed JSON schemas.

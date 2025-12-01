@@ -130,19 +130,28 @@ baselom/
 │   ├── models.rs            # Data structures
 │   ├── engine.rs            # FSM logic
 │   ├── validators.rs        # State validation
-│   └── errors.rs            # Error types
+│   ├── errors.rs            # Error types
+│   ├── statistics.rs        # Statistics calculation
+│   ├── roster.rs            # Roster management
+│   └── archive.rs           # Multi-game archive
 ├── baselom_core/            # Python package
 │   ├── __init__.py          # Package exports
 │   ├── models.py            # Python type hints
 │   ├── engine.py            # Python wrappers
 │   ├── validators.py        # Python validation
 │   ├── serializer.py        # JSON handling
-│   └── exceptions.py        # Exception classes
+│   ├── exceptions.py        # Exception classes
+│   ├── statistics.py        # Statistics functions
+│   ├── roster.py            # Roster management
+│   └── archive.py           # Multi-game archive I/O
 ├── tests/                   # Test files
 │   ├── conftest.py          # Pytest fixtures
 │   ├── test_models.py       # Model tests
 │   ├── test_engine.py       # Engine tests
 │   ├── test_serialization.py
+│   ├── test_statistics.py   # Statistics tests
+│   ├── test_roster.py       # Roster tests
+│   ├── test_archive.py      # Archive tests
 │   └── fixtures/            # Test data
 ├── docs/                    # Documentation
 ├── Cargo.toml               # Rust dependencies

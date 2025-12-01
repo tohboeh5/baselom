@@ -347,6 +347,11 @@ class InternalError(BaseBaselomError):
 | `SERIALIZATION_ERROR` | Serialization | General serialization error |
 | `DESERIALIZATION_ERROR` | Serialization | Cannot deserialize |
 | `SCHEMA_ERROR` | Serialization | Schema validation failed |
+| `ARCHIVE_ERROR` | Archive | Multi-game archive error |
+| `DUPLICATE_GAME_ERROR` | Archive | Game already exists in archive |
+| `ROSTER_ERROR` | Roster | Roster management error |
+| `PLAYER_NOT_FOUND` | Roster | Player not found in roster |
+| `STATS_ERROR` | Statistics | Statistics calculation error |
 | `INTERNAL_ERROR` | Internal | Unexpected internal error |
 
 ## Error Handling Patterns
