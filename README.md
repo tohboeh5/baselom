@@ -164,14 +164,20 @@ baselom/
 ├─ src/                    # Rust source
 │  ├─ lib.rs
 │  ├─ models.rs
-│  └─ engine.rs
+│  ├─ engine.rs
+│  ├─ statistics.rs
+│  ├─ roster.rs
+│  └─ archive.rs
 ├─ baselom_core/           # Python package
 │  ├─ __init__.py
 │  ├─ models.py
 │  ├─ engine.py
 │  ├─ serializer.py
 │  ├─ exceptions.py
-│  └─ validators.py
+│  ├─ validators.py
+│  ├─ statistics.py
+│  ├─ roster.py
+│  └─ archive.py
 ├─ tests/
 ├─ docs/                   # Specifications
 ├─ Cargo.toml
