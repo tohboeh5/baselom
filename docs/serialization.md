@@ -1598,12 +1598,25 @@ class GameState:
 **Typical 9-inning game (~300 events):**
 
 | Strategy | event_history Size | State JSON Size | Replay Time |
-|----------|-------------------|-----------------|-------------|
+|----------|--------------------:|----------------:|------------:|
 | **ID Only** | ~19 KB | ~22 KB | ~50ms (with DB) |
 | **Full Events** | ~150 KB | ~153 KB | ~5ms (in-memory) |
 | **Hybrid** | ~30 KB | ~33 KB | ~30ms (with DB) |
 
-*Sizes are approximate and depend on event complexity*
+**Calculation Assumptions:**
+- **ID Only**: 64 bytes per SHA-256 hash × 300 events = 19,200 bytes
+- **Full Events**: ~500 bytes per event (envelope + payload) × 300 = 150,000 bytes
+  - Envelope: ~150 bytes (event_id, type, timestamps)
+  - Payload: ~350 bytes (game context, player IDs, runner advances)
+- **Hybrid**: ~100 bytes per reference (ID + metadata) × 300 = 30,000 bytes
+- State base size: ~3 KB (without event_history)
+- JSON overhead: ~10-15% (keys, separators, escaping)
+
+*Actual sizes vary based on:*
+- Player ID lengths (shorter IDs = smaller payloads)
+- Event complexity (double plays, multiple runner advances = larger)
+- Compression (gzip can reduce by 60-80%)
+- JSON formatting (compact vs pretty-printed)
 
 ### Recommendation by Use Case
 

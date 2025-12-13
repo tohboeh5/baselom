@@ -544,10 +544,12 @@ See [Serialization - Event History Storage Architecture](./serialization.md#even
 #### Target Performance Goals (Reference Environment)
 
 **Reference Environment Specification:**
-- CPU: AMD EPYC 7763 64-Core (GitHub Actions standard runner)
+- CPU: Intel Xeon (GitHub Actions standard runner) or equivalent 2-4 core CPU @ 2.0+ GHz
 - Build: `--release` (optimizations enabled)
 - Context: Direct Rust calls (not Python bindings)
 - Conditions: Single-threaded, isolated execution
+
+Note: GitHub Actions runners use varying Intel/AMD CPUs. Benchmarks should specify actual CPU model used.
 
 | Operation | Target (Rust Core) | Target (Python via PyO3) | Notes |
 |-----------|-------------------|-------------------------|-------|
