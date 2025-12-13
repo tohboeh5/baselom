@@ -57,6 +57,12 @@ To achieve deterministic serialization, Baselom uses **Canonical JSON** based on
 
 ### Implementation Requirements
 
+**Important Note on no_std Environments:**
+
+JSON serialization via `serde_json` requires the standard library (`std` feature). For `no_std` environments (e.g., embedded WASM, resource-constrained targets), use binary serialization formats like `postcard` or `bincode` instead.
+
+See [Architecture - Standard Library Conditional Usage](./architecture.md#1-standard-library-conditional-usage) for complete details on `no_std` builds and serialization strategy.
+
 #### Python
 
 Use `json.dumps()` with specific parameters or a dedicated library:
@@ -110,15 +116,43 @@ Events use **content-addressed identification**, where the `event_id` is derived
 event_id = SHA-256(schema_version || "|" || event_type || "|" || canonical_json(payload))
 ```
 
-**Important**: The `event_id` is computed from the **payload only**, excluding:
-- `created_at` (timestamp)
-- `event_id` itself
-- Any metadata in the envelope
+### Fields Included/Excluded from event_id Calculation
 
-This enables:
-- **Semantic equality detection**: Two events with the same meaning have the same ID (ignoring timestamps)
-- **Deduplication**: Identical events produce the same ID
-- **Integrity verification**: ID serves as a checksum
+**Fields INCLUDED in event_id:**
+- `schema_version`: Event payload schema version (ensures different schemas produce different IDs)
+- `event_type`: Type identifier (e.g., `hit.v1`, `out.v1`)
+- `payload`: All essential facts for replay:
+  - Player IDs (batter, pitcher, runners)
+  - Game context (inning, outs_before)
+  - Play details (hit_type, out_type)
+  - Runner movements (from_base, to_base)
+  - Fielder IDs involved
+  - Error indicators
+
+**Fields EXCLUDED from event_id:**
+- `created_at`: Timestamp varies per event creation
+- `actor`: Who/what created the event (e.g., `engine-v0.9`, `scorekeeper-john`)
+- `source`: Source system identifier (e.g., `game-server-1`, `mobile-app`)
+- `event_id`: The ID itself (obviously)
+- Derived values in payload (see below)
+
+**Derived Values NOT Stored in Payload:**
+
+The following values are **computed during replay** and NOT stored in the event payload:
+- `rbi`: Runs batted in (calculated from runner movements)
+- `runs_scored`: Which runners scored (derived from advances to base 4)
+- `score_after`: Game score after event (derived from game state)
+- `outs_after`: Out count after event (derived from out_type)
+
+**Rationale:**
+
+This design ensures:
+- **Reproducibility**: Same play always generates same `event_id` regardless of when/where created
+- **Deduplication**: Identical events detected automatically via matching IDs  
+- **Semantic Equality**: Compare events based on game facts, not timestamps or system metadata
+- **Integrity Verification**: ID serves as a cryptographic checksum of essential facts
+- **Audit Trail**: Timestamps and metadata preserved in envelope without affecting content identity
+- **Minimal Storage**: Only essential facts stored; derived values recomputed as needed
 
 ### Example
 
@@ -705,6 +739,77 @@ For backward compatibility, events may also be in **flat format** (without expli
 ```
 
 **Note on Derived Fields**: Fields like `rbi` (runs batted in) and `runners_scored` are **not** stored in the payload. They are derived during replay by the engine. This follows the principle that payloads contain only essential facts, not computed values.
+
+### Risks and Mitigation: Replay-Based Derived Information
+
+**Design Decision**: Baselom stores only minimal essential facts in events and derives statistics (RBI, earned runs, etc.) during replay.
+
+**Risks:**
+
+1. **Rule Interpretation Variance**: Different rule versions may compute derived values differently
+   - Example: Earned run rules differ between MLB and Little League
+   - Example: Error vs hit scoring judgment affects multiple statistics
+   
+2. **Replay Consistency**: Replaying old events with new engine versions may produce different statistics
+
+3. **Historical Accuracy**: Rule changes over time mean historical games can't be perfectly replayed
+
+**Mitigation Strategy:**
+
+| Mitigation | Implementation | Purpose |
+|------------|----------------|---------|
+| **Store Rule Version** | `rules_version` field in GameState | Ensures replay uses correct rule interpretation |
+| **Store Essential Context** | Include in payload: `fielders`, `is_error`, `runners_out` | Provides minimal info for consistent replay |
+| **Schema Versioning** | `schema_version` in event envelope | Enables payload migration when replay logic changes |
+| **Snapshot Strategy** | Periodic state snapshots with derived values | Provides reference points for verification |
+| **Audit Fields** | Store `outs_before`, not just `outs_after` | Enables validation of replay correctness |
+
+**Required Minimal Information in Events:**
+
+To ensure consistent replay across rule variations, events MUST include:
+
+- **Who was involved**: Batter ID, pitcher ID, fielder IDs
+- **What happened**: Hit type, out type, error indicator
+- **Who was out**: `runners_out` list (IDs of players put out)
+- **Where runners moved**: Explicit `runner_advances` with from_base/to_base
+- **Context**: `outs_before`, `inning`, `top` for state reconstruction
+
+**Example - Ground Out Event:**
+
+```json
+{
+  "envelope": {
+    "event_id": "abc123...",
+    "event_type": "out.v1",
+    "schema_version": "1",
+    "created_at": "2024-01-15T10:30:00Z"
+  },
+  "payload": {
+    "game_id": "g001",
+    "inning": 3,
+    "top": true,
+    "outs_before": 1,
+    "batter_id": "b123",
+    "pitcher_id": "p456",
+    "out_type": "ground_out",
+    "fielders": ["ss_44", "1b_55"],
+    "runners_out": ["b123"],
+    "is_sacrifice": false,
+    "runner_advances": []
+  }
+}
+```
+
+Note: `rbi` is NOT stored. If a runner scores on this out, it's captured in `runner_advances`. The RBI calculation during replay will determine if it counts based on the rule version's interpretation of sacrifice outs vs. productive outs.
+
+**Rule Version Documentation:**
+
+The `rules_version` should follow semantic versioning and include league context:
+- `"mlb-2024.1.0"` - MLB rules, 2024 season, version 1.0
+- `"little-league-2024.1.0"` - Little League rules, 2024
+- `"custom-house-rules-1.0.0"` - Custom rule set
+
+This enables correct replay interpretation when rules differ between leagues or change over time. The version should be incremented when rule interpretations change (e.g., earned run calculation methods, error attribution rules).
 
 ## Serialization Functions
 
@@ -1332,6 +1437,319 @@ def maybe_create_snapshot(state: GameState, sequence_number: int) -> None:
             state_bytes=state_bytes
         )
 ```
+
+---
+
+## Event History Storage: Tradeoffs and Strategies
+
+The `event_history` field in `GameState` can store event data in multiple ways. The choice affects storage size, replay speed, and data integrity.
+
+### Storage Strategy Options
+
+#### Option 1: Store Event IDs Only (References)
+
+```python
+@dataclass(frozen=True)
+class GameState:
+    # ...
+    event_history: Tuple[str, ...]  # Just event_id strings
+```
+
+**Pros:**
+- ✅ Minimal storage: 64 bytes (SHA-256 hash) per event
+- ✅ Deduplication: Identical events share single payload in separate store
+- ✅ Immutable: Event IDs never change
+- ✅ Fast state serialization: Small JSON size
+
+**Cons:**
+- ❌ Requires separate payload store for full event data
+- ❌ Slower replay: Must fetch payloads from external store
+- ❌ Dependency: State incomplete without payload store access
+- ❌ Complex architecture: Needs payload store infrastructure
+
+**Use Cases:**
+- Large-scale deployments with many games
+- Database-backed systems
+- Production environments with separate event storage
+
+**Example:**
+
+```json
+{
+  "inning": 5,
+  "outs": 1,
+  "event_history": [
+    "a1b2c3d4e5f6...",
+    "b2c3d4e5f6a1...",
+    "c3d4e5f6a1b2..."
+  ]
+}
+```
+
+#### Option 2: Store Full Event Objects
+
+```python
+@dataclass(frozen=True)
+class GameState:
+    # ...
+    event_history: Tuple[Event, ...]  # Complete event objects
+```
+
+**Pros:**
+- ✅ Self-contained: State includes all event data
+- ✅ Fast replay: All data available immediately
+- ✅ Simple: No external dependencies
+- ✅ Portable: Export/import as single JSON file
+
+**Cons:**
+- ❌ Large storage: 200-500 bytes per event (depending on complexity)
+- ❌ Redundant data: Duplicate events stored multiple times
+- ❌ Slow serialization: Large JSON documents
+- ❌ Memory usage: Full event data loaded into memory
+
+**Use Cases:**
+- Single-game simulations
+- Development and testing
+- Small-scale deployments
+- Archive exports (self-contained files)
+
+**Example:**
+
+```json
+{
+  "inning": 5,
+  "outs": 1,
+  "event_history": [
+    {
+      "envelope": {
+        "event_id": "a1b2c3d4e5f6...",
+        "event_type": "hit.v1",
+        "schema_version": "1",
+        "created_at": "2024-01-15T10:30:00Z"
+      },
+      "payload": {
+        "game_id": "g001",
+        "inning": 1,
+        "top": true,
+        "batter_id": "b123",
+        "pitcher_id": "p456",
+        "hit_type": "single"
+      }
+    },
+    // ... more complete events
+  ]
+}
+```
+
+#### Option 3: Hybrid - Store Event References with Envelope Metadata
+
+```python
+@dataclass(frozen=True) 
+class EventReference:
+    event_id: str
+    event_type: str
+    created_at: str  # Quick access without payload lookup
+
+@dataclass(frozen=True)
+class GameState:
+    # ...
+    event_history: Tuple[EventReference, ...]
+```
+
+**Pros:**
+- ✅ Moderate storage: ~100 bytes per event
+- ✅ Quick event type/timestamp access without payload fetch
+- ✅ Deduplication: Payloads still shared via event_id
+- ✅ Balanced: Good mix of size and accessibility
+
+**Cons:**
+- ⚠️ Still requires payload store for full replay
+- ⚠️ More complex than pure ID references
+- ⚠️ Larger than ID-only approach
+
+**Use Cases:**
+- Medium-scale deployments
+- When event metadata is frequently accessed
+- Systems with caching layers
+
+**Example:**
+
+```json
+{
+  "inning": 5,
+  "outs": 1,
+  "event_history": [
+    {
+      "event_id": "a1b2c3d4e5f6...",
+      "event_type": "hit.v1",
+      "created_at": "2024-01-15T10:30:00Z"
+    },
+    {
+      "event_id": "b2c3d4e5f6a1...",
+      "event_type": "out.v1",
+      "created_at": "2024-01-15T10:32:15Z"
+    }
+  ]
+}
+```
+
+### Storage Size Comparison
+
+**Typical 9-inning game (~300 events):**
+
+| Strategy | event_history Size | State JSON Size | Replay Time |
+|----------|--------------------:|----------------:|------------:|
+| **ID Only** | ~19 KB | ~22 KB | ~50ms (with DB) |
+| **Full Events** | ~150 KB | ~153 KB | ~5ms (in-memory) |
+| **Hybrid** | ~30 KB | ~33 KB | ~30ms (with DB) |
+
+**Calculation Assumptions:**
+- **ID Only**: 64 bytes per SHA-256 hash × 300 events = 19,200 bytes
+- **Full Events**: ~500 bytes per event (envelope + payload) × 300 = 150,000 bytes
+  - Envelope: ~150 bytes (event_id, type, timestamps)
+  - Payload: ~350 bytes (game context, player IDs, runner advances)
+- **Hybrid**: ~100 bytes per reference (ID + metadata) × 300 = 30,000 bytes
+- State base size: ~3 KB (without event_history)
+- JSON overhead: ~10-15% (keys, separators, escaping)
+
+*Actual sizes vary based on:*
+- Player ID lengths (shorter IDs = smaller payloads)
+- Event complexity (double plays, multiple runner advances = larger)
+- Compression (gzip can reduce by 60-80%)
+- JSON formatting (compact vs pretty-printed)
+
+### Recommendation by Use Case
+
+| Scenario | Recommended Strategy | Rationale |
+|----------|---------------------|-----------|
+| **Development/Testing** | Full Events | Simplicity, no infrastructure needed |
+| **Single Game Simulation** | Full Events | Self-contained, fast replay |
+| **Multi-Game Archive Export** | Full Events | Portability, single-file export |
+| **Production Database** | ID Only + Separate Payload Store | Deduplication, scalability |
+| **Large-Scale Simulation (1000+ games)** | ID Only + Snapshots | Storage efficiency critical |
+| **Real-Time Scoring System** | Hybrid | Balance of speed and size |
+| **Mobile App** | ID Only | Minimize data transfer |
+
+### Implementation Considerations
+
+#### For ID-Only Storage:
+
+```python
+from baselom_core import GameState, Event
+
+def replay_with_payload_store(state: GameState, payload_store) -> GameState:
+    """Replay game from event IDs with external payload store.
+    
+    Args:
+        state: Game state with event_history as IDs
+        payload_store: Database/cache with event payloads
+    
+    Returns:
+        Reconstructed state with full event data
+    """
+    events = []
+    for event_id in state.event_history:
+        payload = payload_store.get(event_id)
+        if payload is None:
+            raise ValueError(f"Event {event_id} not found in payload store")
+        events.append(deserialize_event(payload))
+    
+    # Replay from initial state
+    replay_state = initial_game_state(...)
+    for event in events:
+        replay_state = apply_event(replay_state, event)
+    
+    return replay_state
+```
+
+#### For Full Event Storage:
+
+```python
+def export_self_contained_state(state: GameState) -> dict:
+    """Export state with complete event history.
+    
+    Returns:
+        JSON-serializable dict with full events
+    """
+    return {
+        'inning': state.inning,
+        'outs': state.outs,
+        # ... other fields
+        'event_history': [
+            serialize_event(event) for event in state.event_history
+        ]
+    }
+```
+
+### Migration Between Strategies
+
+Systems may need to migrate between storage strategies:
+
+```python
+def convert_ids_to_full_events(
+    state: GameState,
+    payload_store
+) -> GameState:
+    """Convert ID-only event_history to full events.
+    
+    Useful for: Export, archiving, moving to simpler infrastructure
+    """
+    full_events = []
+    for event_id in state.event_history:
+        payload = payload_store.get(event_id)
+        envelope = {'event_id': event_id, ...}
+        full_events.append({'envelope': envelope, 'payload': payload})
+    
+    return state._replace(event_history=tuple(full_events))
+
+def convert_full_events_to_ids(
+    state: GameState,
+    payload_store
+) -> GameState:
+    """Convert full event_history to IDs only.
+    
+    Useful for: Database storage, reducing memory usage
+    """
+    event_ids = []
+    for event in state.event_history:
+        # Store payload if not already present
+        payload_store.put(event['envelope']['event_id'], event['payload'])
+        event_ids.append(event['envelope']['event_id'])
+    
+    return state._replace(event_history=tuple(event_ids))
+```
+
+### Performance Optimization: Snapshots
+
+Regardless of strategy, use **snapshots** to avoid replaying entire game history:
+
+```python
+# Create snapshot every N events
+SNAPSHOT_INTERVAL = 100
+
+if len(state.event_history) % SNAPSHOT_INTERVAL == 0:
+    snapshot_store.save(state.game_id, state)
+
+# Replay from nearest snapshot
+def fast_replay(game_id: str, target_event: int):
+    # Get nearest snapshot before target
+    snapshot = snapshot_store.get_before(game_id, target_event)
+    
+    # Replay only events since snapshot
+    remaining_events = fetch_events(
+        game_id,
+        from_seq=snapshot.last_event_seq,
+        to_seq=target_event
+    )
+    
+    state = snapshot.state
+    for event in remaining_events:
+        state = apply_event(state, event)
+    
+    return state
+```
+
+See [Event History Storage Architecture](#event-history-storage-architecture) for database schema and implementation details.
 
 ---
 

@@ -457,6 +457,160 @@ Special rules for pitchers:
 2. Relief pitcher may enter mid-at-bat
 3. Pitcher injury exception may apply
 
+## Earned Run Calculation
+
+### Overview
+
+**Earned runs** are a pitching statistic that excludes runs scored due to defensive errors. The calculation can vary by rule set (MLB vs Little League vs other variations), which is why Baselom stores `rules_version` with each game state.
+
+### Essential Information Required for Earned Run Calculation
+
+To enable consistent earned run calculation during replay, events MUST include:
+
+| Field | Purpose | Example |
+|-------|---------|---------|
+| `is_error` | Indicates if play involved an error | `true` for error, `false` for clean play |
+| `fielders` | Fielders involved in the play | `["ss_44", "1b_55"]` |
+| `runners_out` | Which runners were put out | `["runner_12"]` |
+| `runner_advances` | All runner movements | `[{"runner_id": "r1", "from_base": 2, "to_base": 4}]` |
+
+### Earned Run Rules
+
+**MLB Standard Rules:**
+
+1. **Earned if**: Run scores via hit, walk, HBP, sacrifice, stolen base, balk, wild pitch, passed ball
+2. **Unearned if**: Run would not have scored without an error
+3. **Reconstruction Rule**: Replay the inning without the error - if runner still scores, it's earned
+
+**Example Scenario:**
+
+```
+Inning: 1 out, runner on 2nd
+1. Single - runner scores from 2nd         [Earned]
+2. Ground ball - error allows batter safe  [Runner now on 1st - error marked]
+3. Double - batter (on 1st) scores         [Unearned - wouldn't be on base without error]
+```
+
+**Event Storage for Earned Run Calculation:**
+
+```json
+{
+  "envelope": {
+    "event_id": "abc123...",
+    "event_type": "hit.v1",
+    "schema_version": "1"
+  },
+  "payload": {
+    "game_id": "g001",
+    "inning": 3,
+    "top": true,
+    "outs_before": 1,
+    "batter_id": "b123",
+    "pitcher_id": "p456",
+    "hit_type": "single",
+    "is_error": false,
+    "fielders": [],
+    "runner_advances": [
+      {"runner_id": "r_on_2nd", "from_base": 2, "to_base": 4},
+      {"runner_id": "b123", "from_base": 0, "to_base": 1}
+    ]
+  }
+}
+```
+
+Note: The `earned_runs` value is NOT stored. It is calculated during replay by:
+1. Tracking which runners reached base via error
+2. When runner scores, check if they (or anyone ahead of them) reached via error
+3. If yes → unearned; if no → earned
+
+### Rule Version Variations
+
+Different rule sets may interpret earned runs differently:
+
+| Rule Set | Key Differences |
+|----------|-----------------|
+| **MLB** | Standard reconstruction rule; passed balls count as earned |
+| **Little League** | May be more lenient on error attribution |
+| **NCAA** | Similar to MLB but with specific catcher's interference rules |
+| **Custom Leagues** | May simplify to "error in same inning = unearned" |
+
+**Why Store rules_version:**
+
+```python
+# Replay with correct rule interpretation
+state = replay_game(game_id)
+rules = GameRules.from_version(state.rules_version)
+
+# Earned runs calculated according to rule version
+pitching_stats = calculate_pitching_stats(state, rules)
+# Same events, different rules_version = different earned run totals
+```
+
+**Example Rules Version:**
+
+```python
+GameState(
+    inning=5,
+    # ...
+    rules_version="mlb-2024.1.0",  # Specifies MLB 2024 rules, version 1.0
+    # ...
+)
+```
+
+### Pitching Change and Inherited Runners
+
+When a pitcher is substituted:
+- **Inherited runners**: Runners on base when relief pitcher enters
+- **Responsibility**: If inherited runner scores, charged to PREVIOUS pitcher (unless advanced via new pitcher's error)
+
+**Event payload must track:**
+
+```json
+{
+  "event_type": "substitution.v1",
+  "payload": {
+    "team": "home",
+    "player_out": "p_starter",
+    "player_in": "p_reliever",
+    "position": "pitcher",
+    "runners_on_base_snapshot": ["r1", null, "r3"]  // Who's responsible for whom
+  }
+}
+```
+
+### Validation of Earned Run Calculation
+
+To verify earned run calculations during testing:
+
+```python
+def test_earned_run_with_error():
+    """Verify earned run calculation handles errors correctly."""
+    state = create_state_with_runner_on_first()
+    
+    # Error allows runner to advance
+    state, event1 = apply_pitch(state, 'in_play', rules,
+        batted_ball_result='error',
+        runner_advances=[
+            {'runner_id': 'r1', 'from_base': 1, 'to_base': 2}  # Via error
+        ])
+    
+    # Next batter hits single, runner scores
+    state, event2 = apply_pitch(state, 'in_play', rules,
+        batted_ball_result='single',
+        runner_advances=[
+            {'runner_id': 'r1', 'from_base': 2, 'to_base': 4}  # Scores
+        ])
+    
+    # Calculate pitching stats
+    stats = calculate_pitching_stats(state.pitchers['away'], state)
+    
+    # Runner scored, but it's unearned (reached 2nd via error)
+    assert stats.runs_allowed == 1
+    assert stats.earned_runs == 0  # Unearned due to error
+```
+
+See [Statistics Tests](./testing.md#earned-run-scenarios) for comprehensive earned run test cases.
+
 ## RBI Calculation
 
 ### RBI Credited
