@@ -809,7 +809,7 @@ The `rules_version` should follow semantic versioning and include league context
 - `"little-league-2024.1.0"` - Little League rules, 2024
 - `"custom-house-rules-1.0.0"` - Custom rule set
 
-See [Versioning](./versioning.md) for complete rule version specifications.
+This enables correct replay interpretation when rules differ between leagues or change over time. The version should be incremented when rule interpretations change (e.g., earned run calculation methods, error attribution rules).
 
 ## Serialization Functions
 
