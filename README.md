@@ -25,11 +25,38 @@ Baselom Core is designed for both **game simulations** and **real-world game man
 - **🔒 Immutable State**: `GameState` is immutable—state changes always return a new instance.
 - **✅ Testable**: Fine-grained use cases can be covered by tests with >90% coverage target.
 - **⚙️ Configurable Rules**: DH, extra innings, tiebreaker rules externalized via `GameRules`.
-- **📝 Event-Oriented**: All plays output as `Event` objects, immediately serializable to JSON.
+- **📝 Event-Oriented**: All plays output as `Event` objects with content-based IDs (SHA-256 of payload), immediately serializable to JSON.
 - **⚡ High Performance**: Rust core with Python bindings via PyO3/maturin.
 - **📊 Statistics Engine**: Calculate batting averages, ERA, OPS, and other statistics across multiple games.
 - **👥 Roster Management**: Track player states including bench, active roster, and substitution history.
 - **📦 Multi-Game Archive**: Store and retrieve complete game data in Baselom's native JSON format.
+
+## 🔑 Event Identification and Reproducibility
+
+Baselom uses **content-addressed event IDs** for reproducibility and semantic equality:
+
+```
+event_id = SHA-256(schema_version|event_type|canonical_json(payload))
+```
+
+**Fields included in event_id:**
+- `schema_version`: Event payload schema version
+- `event_type`: Type identifier (e.g., `hit.v1`, `out.v1`)
+- `payload`: Essential facts only (batter, pitcher, hit type, runner movements)
+
+**Fields excluded from event_id:**
+- `created_at`: Timestamp varies per event creation
+- `actor`: Event source/creator metadata
+- `source`: System identifier metadata
+- Derived values: `rbi`, `runs_scored` (computed during replay)
+
+**Why this design?**
+- **Reproducibility**: Same play always generates same event_id regardless of when/where it's created
+- **Deduplication**: Identical events detected automatically via matching IDs
+- **Semantic Equality**: Compare events based on game facts, not timestamps
+- **Audit Trail**: Timestamps preserved in envelope for audit purposes without affecting content identity
+
+See [Serialization Documentation](./docs/serialization.md) for complete details on event structure and ID generation.
 
 ## 🏗️ Architecture
 
