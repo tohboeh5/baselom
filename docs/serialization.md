@@ -57,6 +57,12 @@ To achieve deterministic serialization, Baselom uses **Canonical JSON** based on
 
 ### Implementation Requirements
 
+**Important Note on no_std Environments:**
+
+JSON serialization via `serde_json` requires the standard library (`std` feature). For `no_std` environments (e.g., embedded WASM, resource-constrained targets), use binary serialization formats like `postcard` or `bincode` instead.
+
+See [Architecture - Standard Library Conditional Usage](./architecture.md#1-standard-library-conditional-usage) for complete details on `no_std` builds and serialization strategy.
+
 #### Python
 
 Use `json.dumps()` with specific parameters or a dedicated library:
