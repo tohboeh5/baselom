@@ -236,6 +236,7 @@ Full specifications available in [`docs/`](./docs/):
 - [Serialization](./docs/serialization.md)
 - [Error Handling](./docs/error-handling.md)
 - [Testing](./docs/testing.md)
+- [Implementation Plan](./docs/implementation-plan.md)
 - [Development](./docs/development.md)
 - [Versioning](./docs/versioning.md)
 
