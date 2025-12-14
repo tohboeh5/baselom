@@ -10,8 +10,22 @@ Baselom Core is a lightweight, pure game-state engine for baseball that implemen
 - Base/runner state management
 - Scoring
 - Substitutions
+- **Statistics calculation** (batting average, ERA, etc.)
+- **Multi-game data archiving**
+- **Roster and player state management**
 
 All implemented as an **immutable, testable Finite State Machine (FSM)**.
+
+## Use Cases
+
+Baselom Core is designed for both **game simulations** and **real-world game management**:
+
+| Use Case | Description |
+|----------|-------------|
+| **⚾ Real Game Score Management** | Track actual baseball games with official scoring, substitutions, and statistics |
+| **🎮 Game Simulations** | Build baseball video games, fantasy baseball engines, or AI training environments |
+| **📊 Statistics & Analytics** | Calculate batting averages, ERA, and other statistics across multiple games |
+| **📝 Score Archiving** | Store and replay complete game data using Baselom's multi-game archive format |
 
 ## Release Roadmap
 
@@ -28,12 +42,14 @@ All implemented as an **immutable, testable Finite State Machine (FSM)**.
 | Principle | Description |
 |-----------|-------------|
 | **Single Responsibility** | Only handles rule compliance and state transitions |
-| **Purity** | `GameState` is immutable; changes return new instances |
+| **Deep Immutability** | `GameState` and all nested objects are immutable; uses `Tuple`, `Mapping` instead of `List`, `Dict` |
 | **Testability** | Fine-grained test coverage (>90% target) |
 | **Configurability** | Rules externalized via `GameRules` |
-| **Event-Oriented** | All plays output as JSON-serializable `Event` objects |
+| **Event-Oriented** | All plays output as envelope/payload `Event` objects with content-based IDs |
+| **Deterministic Serialization** | Canonical JSON (RFC 8785) enables content-addressed storage and semantic comparison |
 | **High Performance** | Rust core with multiple platform bindings |
 | **Multi-Platform** | WASM-first design enabling browser, Node.js, Python, and native execution |
+| **Versatility** | Suitable for both game simulations and real-world score management |
 
 ## Documentation Index
 
@@ -42,8 +58,15 @@ All implemented as an **immutable, testable Finite State Machine (FSM)**.
 | Document | Description |
 |----------|-------------|
 | [Architecture](./architecture.md) | System architecture, component design, Rust/Python hybrid structure, data flow diagrams |
-| [Data Models](./data-models.md) | Complete specifications for `GameState`, `GameRules`, `Event`, and all enumerations |
+| [Data Models](./data-models.md) | Complete specifications for `GameState`, `GameRules`, `Event`, roster, and statistics models |
 | [API Reference](./api-reference.md) | Public function signatures, parameters, return types, and usage examples |
+
+### Statistics & Multi-Game
+
+| Document | Description |
+|----------|-------------|
+| [Statistics](./data-models.md#statistics-models) | Player statistics models, calculation methods, aggregation across games |
+| [Multi-Game Archive](./serialization.md#multi-game-archive-format) | JSON format for storing multiple games with metadata |
 
 ### Rules & Logic
 
@@ -55,14 +78,14 @@ All implemented as an **immutable, testable Finite State Machine (FSM)**.
 
 | Document | Description |
 |----------|-------------|
-| [Serialization](./serialization.md) | JSON schemas, serialization/deserialization functions, versioning, migration |
+| [Serialization](./serialization.md) | Canonical JSON, content-based IDs, event envelope/payload structure, versioning, migration, event history storage |
 | [Error Handling](./error-handling.md) | Exception hierarchy, error codes, handling patterns, Rust-Python error propagation |
 
 ### Development
 
 | Document | Description |
 |----------|-------------|
-| [Testing](./testing.md) | Test strategy, test categories, fixtures, coverage targets, CI testing |
+| [Testing](./testing.md) | Test strategy, test categories, fixtures, coverage targets, CI testing, cross-platform interoperability tests |
 | [Development Guide](./development.md) | Environment setup, build commands, debugging, CI/CD pipeline, contribution guidelines |
 | [Versioning](./versioning.md) | Semantic versioning policy, compatibility guarantees, deprecation process, migration |
 

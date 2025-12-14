@@ -29,6 +29,100 @@ Pre-commit hooks automatically run `format` and `lint` on every commit:
 
 ```bash
 pre-commit install  # Already done in devcontainer
+# Install wasm-pack
+curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+# Or via cargo
+cargo install wasm-pack
+
+# Add WASM target
+rustup target add wasm32-unknown-unknown
+
+# Verify installation
+wasm-pack --version
+```
+
+## Project Structure
+
+```
+baselom/
+├── src/                      # Rust source code
+│   ├── lib.rs               # Module entry point, PyO3 exports
+│   ├── models.rs            # Data structures
+│   ├── engine.rs            # FSM logic
+│   ├── validators.rs        # State validation
+│   ├── errors.rs            # Error types
+│   ├── statistics.rs        # Statistics calculation
+│   ├── roster.rs            # Roster management
+│   └── archive.rs           # Multi-game archive
+├── baselom_core/            # Python package
+│   ├── __init__.py          # Package exports
+│   ├── models.py            # Python type hints
+│   ├── engine.py            # Python wrappers
+│   ├── validators.py        # Python validation
+│   ├── serializer.py        # JSON handling
+│   ├── exceptions.py        # Exception classes
+│   ├── statistics.py        # Statistics functions
+│   ├── roster.py            # Roster management
+│   └── archive.py           # Multi-game archive I/O
+├── tests/                   # Test files
+│   ├── conftest.py          # Pytest fixtures
+│   ├── test_models.py       # Model tests
+│   ├── test_engine.py       # Engine tests
+│   ├── test_serialization.py
+│   ├── test_statistics.py   # Statistics tests
+│   ├── test_roster.py       # Roster tests
+│   ├── test_archive.py      # Archive tests
+│   └── fixtures/            # Test data
+├── docs/                    # Documentation
+├── Cargo.toml               # Rust dependencies
+├── pyproject.toml           # Python project config
+└── README.md
+```
+
+## Development Workflow
+
+### Making Changes
+
+1. **Create a feature branch**
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+2. **Make changes** to Rust and/or Python code
+
+3. **Rebuild**
+   ```bash
+   uv run maturin develop  # With uv
+   # or: maturin develop   # With pip
+   ```
+
+4. **Run tests**
+   ```bash
+   cargo test                 # Rust tests
+   uv run pytest              # Python tests (with uv)
+   # or: pytest               # Python tests (with pip)
+   ```
+
+5. **Lint and format**
+   ```bash
+   cargo fmt          # Format Rust
+   cargo clippy       # Lint Rust
+   uv run ruff check .       # Lint Python (with uv)
+   uv run ruff format .      # Format Python (with uv)
+   uv run mypy baselom_core  # Type check Python (with uv)
+   ```
+
+6. **Commit changes**
+   ```bash
+   git add .
+   git commit -m "feat: description of changes"
+   ```
+
+### Commit Message Format
+
+Follow [Conventional Commits](https://www.conventionalcommits.org/):
+
 ```
 
 ## WASM-Compatible Development Rules

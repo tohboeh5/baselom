@@ -2,12 +2,21 @@
 
 ## Overview
 
-Baselom Core is a **multi-platform Rust library** that implements a baseball game-state engine as an immutable Finite State Machine (FSM). The core is designed from the ground up to support multiple target platforms:
+Baselom Core is a **multi-platform Rust library** that implements a baseball game-state engine as an immutable Finite State Machine (FSM). The core is designed for both **game simulations** and **real-world game management**, supporting multiple target platforms:
 
 - **Python** (v0.1.0) - via PyO3/maturin bindings (**Initial Release**)
 - **WebAssembly (WASM)** (v0.2.0+) - for browser and edge environments
 - **Native** (Linux, macOS, Windows) - via direct Rust compilation
 - **Future**: Mobile (iOS/Android), other language bindings
+
+### Key Capabilities
+
+| Capability | Description |
+|------------|-------------|
+| **Game State Management** | Track inning progression, base runners, scoring, and substitutions |
+| **Statistics Calculation** | Calculate batting average, ERA, OPS, and other statistics |
+| **Roster Management** | Track player status, bench players, and substitution history |
+| **Multi-Game Archiving** | Store and retrieve multiple games in Baselom JSON format |
 
 ## Release Roadmap
 
@@ -56,18 +65,141 @@ Baselom Core is a **multi-platform Rust library** that implements a baseball gam
 
 The architecture follows WASM-compatible design principles to ensure the core library can run in any environment:
 
-### 1. No Standard Library Dependencies (where possible)
+### 1. Standard Library Conditional Usage
+
+The core logic is designed to be `#![no_std]` compatible with the `alloc` crate for heap allocation. However, some features require the standard library and are gated behind feature flags.
 
 ```rust
-// Core logic uses #![no_std] compatible patterns
-// Only alloc crate for heap allocation
-
+// Core types and logic - no_std compatible
 #[cfg(not(feature = "std"))]
 extern crate alloc;
 
 #[cfg(not(feature = "std"))]
 use alloc::{string::String, vec::Vec};
+
+// JSON serialization requires std feature
+#[cfg(feature = "std")]
+use serde_json;
 ```
+
+**Important Note on `no_std` and JSON Serialization**:
+
+`serde_json` requires the standard library (`std`) because it:
+- Uses `std::io::Write` for serialization
+- Depends on `std::error::Error` for error handling
+- Uses `std::collections::HashMap` for JSON objects
+
+**Serialization Strategy by Environment**:
+
+| Environment | Serialization Format | Feature Flags | Notes |
+|-------------|---------------------|---------------|-------|
+| **Native (Python/CLI)** | JSON (`serde_json`) | `--features std` | Human-readable, interoperable |
+| **WASM (Browser)** | JSON (`serde_json`) | `--features std` | Standard library available in WASM |
+| **Embedded / no_std** | Binary (`postcard`) | `--no-default-features --features alloc` | Compact, no_std compatible |
+| **Cross-platform Archive** | JSON | `--features std` | For data exchange between platforms |
+
+**Cross-Platform Serialization Compatibility**:
+
+The requirement "Rust and Python produce identical serialized output" applies ONLY to JSON serialization with `std` feature enabled. For `no_std` environments:
+
+1. **Use binary formats** (`postcard`, `bincode`) for internal storage
+2. **Convert to JSON** at boundary when interoperating with Python/external systems
+3. **Maintain separate serialization paths**:
+   - Internal: Binary format (no_std safe)
+   - External: JSON format (requires std feature)
+
+**Example: no_std WASM Build with External JSON Support**
+
+```rust
+// Internal state serialization (no_std)
+#[cfg(not(feature = "std"))]
+fn serialize_state_internal(state: &GameState) -> Result<Vec<u8>, Error> {
+    postcard::to_allocvec(state).map_err(|e| Error::Serialization(e))
+}
+
+// External JSON serialization (std required)
+#[cfg(feature = "std")]
+fn serialize_state_json(state: &GameState) -> Result<String, Error> {
+    serde_json::to_string(state).map_err(|e| Error::Serialization(e))
+}
+
+// WASM binding (can use either depending on build features)
+#[wasm_bindgen]
+pub fn export_state_json(state: &GameState) -> Result<String, JsValue> {
+    #[cfg(feature = "std")]
+    {
+        serialize_state_json(state).map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+    
+    #[cfg(not(feature = "std"))]
+    {
+        // For no_std WASM, must convert via binary format
+        let binary = serialize_state_internal(state)?;
+        // Convert to hex string or base64 for transmission
+        Ok(hex::encode(binary))
+    }
+}
+```
+
+**Recommended Build Configurations**:
+
+```toml
+# Cargo.toml
+[features]
+default = ["std"]
+std = ["serde_json"]           # Enable JSON + std library
+alloc = []                     # Enable heap allocation only
+python = ["pyo3", "std"]       # Python bindings (requires std)
+wasm = ["wasm-bindgen"]        # WASM bindings (can work with or without std)
+
+[dependencies]
+serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
+serde_json = { version = "1.0", optional = true }  # Only with std feature
+postcard = { version = "1.0", default-features = false, features = ["alloc"] }
+```
+
+```bash
+# Build examples
+
+# Python bindings (requires std for JSON)
+maturin build --release --features python,std
+
+# WASM with std (recommended for browser use)
+wasm-pack build --target web --features wasm,std
+
+# WASM without std (embedded/minimal)
+cargo build --target wasm32-unknown-unknown --no-default-features --features wasm,alloc
+
+# Native CLI with JSON
+cargo build --release --features std
+```
+
+**Testing Cross-Platform Serialization**:
+
+```rust
+#[cfg(all(test, feature = "std"))]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_rust_python_json_compatibility() {
+        let state = create_test_state();
+        
+        // Serialize in Rust
+        let rust_json = serde_json::to_string(&state).unwrap();
+        
+        // Parse back
+        let parsed: GameState = serde_json::from_str(&rust_json).unwrap();
+        
+        // Verify canonical form matches
+        let canonical1 = canonical_json_bytes(&state);
+        let canonical2 = canonical_json_bytes(&parsed);
+        assert_eq!(canonical1, canonical2);
+    }
+}
+```
+
+See [Serialization](./serialization.md#cross-platform-serialization) for complete details on JSON canonicalization and cross-platform compatibility.
 
 ### 2. No I/O or System Calls
 
@@ -149,12 +281,12 @@ const [newState, event] = applyPitch(state, 'ball', rules);
 console.log(JSON.stringify(event));
 ```
 
-## System Architecture (Legacy Python-focused view)
+## System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              Client Applications                             │
-│              (Baseball Simulators, Game Management Systems)                  │
+│    (Baseball Simulators, Real Game Scorekeeping, Analytics Systems)          │
 └──────────────────────────────┬──────────────────────────────────────────────┘
                                │
                                ▼
@@ -164,23 +296,23 @@ console.log(JSON.stringify(event));
 │  │ models.py   │  │ engine.py    │  │ validators.py  │  │ serializer.py │  │
 │  │ (Type Hints)│  │ (Wrappers)   │  │ (Validation)   │  │ (JSON I/O)    │  │
 │  └─────────────┘  └──────────────┘  └────────────────┘  └───────────────┘  │
-│  ┌─────────────┐                                                            │
-│  │exceptions.py│                                                            │
-│  │ (Errors)    │                                                            │
-│  └─────────────┘                                                            │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────────┐  ┌───────────────┐  │
+│  │exceptions.py│  │statistics.py │  │  roster.py     │  │  archive.py   │  │
+│  │ (Errors)    │  │ (Stats Calc) │  │ (Player Mgmt)  │  │ (Multi-Game)  │  │
+│  └─────────────┘  └──────────────┘  └────────────────┘  └───────────────┘  │
 └──────────────────────────────┬──────────────────────────────────────────────┘
                                │ PyO3 FFI Bindings
                                ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                            Rust Core Engine                                  │
-│  ┌─────────────┐  ┌──────────────┐  ┌────────────────┐                      │
-│  │ models.rs   │  │ engine.rs    │  │ validators.rs  │                      │
-│  │ (Data Types)│  │ (FSM Logic)  │  │ (State Check)  │                      │
-│  └─────────────┘  └──────────────┘  └────────────────┘                      │
-│  ┌─────────────┐  ┌──────────────┐                                          │
-│  │ errors.rs   │  │ lib.rs       │                                          │
-│  │ (Error Types)│ │ (Entry Point)│                                          │
-│  └─────────────┘  └──────────────┘                                          │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────────┐  ┌───────────────┐  │
+│  │ models.rs   │  │ engine.rs    │  │ validators.rs  │  │ statistics.rs │  │
+│  │ (Data Types)│  │ (FSM Logic)  │  │ (State Check)  │  │ (Stats Calc)  │  │
+│  └─────────────┘  └──────────────┘  └────────────────┘  └───────────────┘  │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────────┐  ┌───────────────┐  │
+│  │ errors.rs   │  │ lib.rs       │  │  roster.rs     │  │  archive.rs   │  │
+│  │ (Error Types)│ │ (Entry Point)│  │ (Player Mgmt)  │  │ (Multi-Game)  │  │
+│  └─────────────┘  └──────────────┘  └────────────────┘  └───────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -193,15 +325,18 @@ Baselom Core is **only** responsible for:
 - Rule compliance checking
 - State transitions
 - Event generation
+- **Statistics calculation** (batting average, ERA, etc.)
+- **Roster management** (player status, substitution tracking)
+- **Multi-game archiving** (storing and retrieving game data)
 
 It does **not** handle:
 
-- Player abilities or statistics
+- Player abilities or skill simulation
 - Randomness or probability
 - Game strategy or AI
 - User interface
 - Network communication
-- Data persistence
+- External data persistence (uses JSON for data exchange)
 
 ### 2. Immutability
 
@@ -242,28 +377,76 @@ Transitions:
 
 ### 4. Event Sourcing
 
-Every state change produces an event:
+Every state change produces an event with **envelope/payload structure**:
 
 ```json
 {
-  "type": "single",
-  "timestamp": "2024-01-15T10:30:00Z",
-  "inning": 3,
-  "top": true,
-  "batter": "player_123",
-  "pitcher": "player_456",
-  "runners_advanced": [
-    {"runner": "player_789", "from": 1, "to": 3}
-  ],
-  "rbi": 0
+  "envelope": {
+    "event_id": "a1b2c3d4...",
+    "event_type": "hit.v1",
+    "schema_version": "1",
+    "created_at": "2024-01-15T10:30:00Z"
+  },
+  "payload": {
+    "game_id": "game-001",
+    "inning": 3,
+    "top": true,
+    "batter_id": "player_123",
+    "pitcher_id": "player_456",
+    "hit_type": "single",
+    "runner_advances": [
+      {"runner_id": "player_789", "from_base": 1, "to_base": 3}
+    ]
+  }
 }
 ```
 
+**Key Design Decisions:**
+- `event_id` is **content-based** (SHA-256 of payload), not a UUID
+- Timestamps are in envelope, NOT in the ID calculation
+- Payload contains only **essential facts**, not derived values (no `rbi`)
+- Same logical event always produces same `event_id`
+
 Events enable:
 - Full game replay
+- Semantic equality detection (same play = same ID)
+- Deduplication in storage
 - Analytics and statistics
-- Undo/redo functionality
 - External system integration
+
+### 5. Content-Addressed Storage
+
+Events and snapshots use **content-addressed identification**:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Event Storage Architecture                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌─────────────────┐         ┌─────────────────────────────┐   │
+│  │  Events Index   │         │      Payload Store          │   │
+│  │ (sequence_num,  │────────▶│  (event_id → payload_bytes) │   │
+│  │  event_id)      │         │  Content-addressed          │   │
+│  └─────────────────┘         └─────────────────────────────┘   │
+│           │                                                      │
+│           │ Periodic                                            │
+│           ▼                                                      │
+│  ┌─────────────────────────────┐                                │
+│  │     Snapshot Store          │                                │
+│  │  (snapshot_id → state)      │                                │
+│  │  For fast replay            │                                │
+│  └─────────────────────────────┘                                │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+Benefits:
+- **Deduplication**: Identical payloads share storage
+- **Immutability**: Append-only, no overwrites
+- **Integrity**: Hash-based IDs enable verification
+- **Fast Replay**: Snapshots skip replaying old events
+
+See [Serialization - Event History Storage Architecture](./serialization.md#event-history-storage-architecture) for details.
 
 ## Component Details
 
@@ -276,6 +459,10 @@ Events enable:
 | `engine.rs` | FSM transition logic |
 | `validators.rs` | State validation rules |
 | `errors.rs` | Error type definitions |
+| `statistics.rs` | Statistics calculation logic |
+| `roster.rs` | Roster and player management |
+| `archive.rs` | Multi-game archive handling |
+| `serializer.rs` | Canonical JSON and hashing |
 
 ### Python Layer (`baselom_core/`)
 
@@ -285,8 +472,11 @@ Events enable:
 | `models.py` | Python dataclass definitions, type hints |
 | `engine.py` | Wrapper functions around Rust core |
 | `validators.py` | Additional Python-side validation |
-| `serializer.py` | JSON serialization/deserialization |
+| `serializer.py` | JSON serialization/deserialization, canonical JSON |
 | `exceptions.py` | Python exception hierarchy |
+| `statistics.py` | Statistics functions and aggregation |
+| `roster.py` | Roster management functions |
+| `archive.py` | Multi-game archive import/export |
 
 ## Data Flow
 
@@ -343,16 +533,121 @@ Events enable:
 - **Type coercion**: Automatic conversion between Rust/Python types
 - **GIL management**: Release GIL during Rust computations
 
-### Benchmarks (Target)
+### Performance Targets and Benchmarking
 
-| Operation | Target Latency |
-|-----------|----------------|
-| `apply_pitch()` | < 100μs |
-| `validate_state()` | < 50μs |
-| State serialization | < 100μs |
-| Full game simulation (9 innings, ~300 pitches) | < 50ms |
+**Important**: Performance targets are **environment-specific** and depend on:
+- CPU architecture and clock speed
+- Build configuration (Release vs Debug)
+- Execution context (pure Rust vs PyO3 bindings)
+- System load and resource availability
 
-*Note: These are initial targets. Actual benchmarks will be measured and documented after implementation.*
+#### Target Performance Goals (Reference Environment)
+
+**Reference Environment Specification:**
+- CPU: Intel Xeon (GitHub Actions standard runner) or equivalent 2-4 core CPU @ 2.0+ GHz
+- Build: `--release` (optimizations enabled)
+- Context: Direct Rust calls (not Python bindings)
+- Conditions: Single-threaded, isolated execution
+
+Note: GitHub Actions runners use varying Intel/AMD CPUs. Benchmarks should specify actual CPU model used.
+
+| Operation | Target (Rust Core) | Target (Python via PyO3) | Notes |
+|-----------|-------------------|-------------------------|-------|
+| `apply_pitch()` | < 100μs | < 300μs | PyO3 overhead adds ~2-3x latency |
+| `validate_state()` | < 50μs | < 150μs | Includes full invariant checking |
+| State serialization (JSON) | < 100μs | < 200μs | Canonical JSON generation |
+| Full game simulation (9 innings, ~300 pitches) | < 50ms | < 200ms | End-to-end including state transitions |
+
+**Debug Build Performance**: Expect 5-10x slower performance in Debug builds. Always use `--release` for benchmarking.
+
+**WASM Performance** (Future, v0.2.0+): WASM builds may be 2-3x slower than native due to:
+- Limited CPU instruction set
+- Memory access patterns
+- Browser JavaScript interop overhead
+
+#### Benchmark Execution
+
+Benchmarks MUST document their execution environment:
+
+```bash
+# Rust benchmarks
+cargo bench --features bench -- --save-baseline reference
+
+# Python benchmarks
+pytest tests/test_performance.py --benchmark-only --benchmark-json=benchmark.json
+
+# Record environment
+echo "CPU: $(lscpu | grep 'Model name')" >> benchmark_env.txt
+echo "Rust: $(rustc --version)" >> benchmark_env.txt
+echo "Build: release" >> benchmark_env.txt
+```
+
+#### CI Benchmark Configuration
+
+GitHub Actions benchmark job specification:
+
+```yaml
+benchmark:
+  runs-on: ubuntu-latest  # Standard runner (2-core CPU)
+  steps:
+    - name: Run benchmarks
+      run: |
+        cargo bench --release
+        pytest --benchmark-only
+    
+    - name: Record environment
+      run: |
+        echo "Runner: ${{ runner.os }} - ${{ runner.arch }}"
+        lscpu > ci_cpu_info.txt
+        cat /proc/cpuinfo >> ci_cpu_info.txt
+```
+
+#### Performance Regression Detection
+
+Benchmarks should be monitored for regressions:
+- **Warning threshold**: 20% slower than baseline
+- **Failure threshold**: 50% slower than baseline
+- **Baseline update**: When intentional changes affect performance
+
+#### Optimization Priority
+
+Performance optimization should focus on:
+1. **Hot path operations**: `apply_pitch()`, state transitions
+2. **Serialization**: Canonical JSON generation (used frequently)
+3. **Validation**: Only check invariants when necessary
+4. **Memory allocation**: Minimize allocations in core engine
+
+**Non-goals**: 
+- Sub-microsecond latencies (not required for baseball simulation)
+- Extreme optimization at cost of code clarity
+- Platform-specific SIMD optimizations (maintain portability)
+
+#### Performance Testing Documentation
+
+All benchmark results SHOULD include:
+- Hardware specification (CPU model, RAM, storage type)
+- Software environment (OS, Rust version, Python version)
+- Build configuration (release/debug, features enabled)
+- Test conditions (single-threaded, system load)
+- Statistical summary (mean, median, std dev, min, max)
+
+Example benchmark report:
+
+```
+Environment:
+  CPU: Intel Core i7-9750H @ 2.60GHz
+  OS: Ubuntu 22.04
+  Rust: 1.75.0
+  Python: 3.11.5
+  Build: --release
+
+Results (mean of 1000 iterations):
+  apply_pitch()     : 87μs  ± 12μs  [✓ within target]
+  validate_state()  : 43μs  ± 8μs   [✓ within target]
+  Full game (9 inn) : 45ms  ± 7ms   [✓ within target]
+```
+
+*Note: Targets are aspirational for optimized Release builds. Actual performance will be documented as benchmarks are implemented and measured across different environments.*
 
 ## Thread Safety
 
@@ -427,11 +722,12 @@ The event system can be extended to include:
 
 ### Rust Core Dependencies
 
-| Crate | Purpose | WASM Compatible |
-|-------|---------|-----------------|
-| `serde` | Serialization | ✅ Yes |
-| `serde_json` | JSON support | ✅ Yes |
-| `thiserror` | Error handling | ✅ Yes |
+| Crate | Purpose | WASM Compatible | Notes |
+|-------|---------|-----------------|-------|
+| `serde` | Serialization | ✅ Yes | Core derive macros work in all environments |
+| `serde_json` | JSON support | ⚠️ Requires `std` | Use `--features std` for JSON; for no_std WASM, use binary formats |
+| `thiserror` | Error handling | ✅ Yes | |
+| `postcard` | Binary serialization | ✅ Yes (no_std) | Alternative for no_std environments |
 
 ### Platform-Specific Dependencies
 

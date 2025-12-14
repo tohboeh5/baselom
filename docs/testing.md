@@ -27,6 +27,9 @@ This document defines the testing strategy, test categories, and required test c
 |-----------|-----------------|
 | Rust core (models) | ≥95% |
 | Rust core (engine) | ≥95% |
+| Rust core (statistics) | ≥95% |
+| Rust core (roster) | ≥95% |
+| Rust core (archive) | ≥95% |
 | Python wrappers | ≥90% |
 | Serialization | ≥95% |
 | Overall | ≥90% |
@@ -354,15 +357,15 @@ class TestValidation:
 ```python
 class TestPerformance:
     def test_apply_pitch_latency(self, benchmark):
-        """apply_pitch should complete in under 1μs."""
+        """apply_pitch should complete in under 100μs (target from architecture.md)."""
         state = create_valid_state()
         
         result = benchmark(lambda: apply_pitch(state, 'ball', rules))
         
-        assert result.stats.mean < 0.000001  # 1μs
+        assert result.stats.mean < 0.0001  # 100μs
     
     def test_full_game_simulation(self, benchmark):
-        """Full 9-inning game should simulate in under 1ms."""
+        """Full 9-inning game should simulate in under 50ms (target from architecture.md)."""
         def simulate_game():
             state = initial_game_state(...)
             while state.game_status != 'final':
@@ -371,7 +374,276 @@ class TestPerformance:
         
         result = benchmark(simulate_game)
         
-        assert result.stats.mean < 0.001  # 1ms
+        assert result.stats.mean < 0.05  # 50ms
+```
+
+### 7. Statistics Tests
+
+```python
+class TestStatistics:
+    def test_batting_average_calculation(self):
+        """Batting average should be hits / at_bats."""
+        avg = calculate_batting_average(hits=30, at_bats=100)
+        assert avg == 0.300
+    
+    def test_batting_average_zero_at_bats(self):
+        """Batting average with zero at_bats should return 0."""
+        avg = calculate_batting_average(hits=0, at_bats=0)
+        assert avg == 0.0
+    
+    def test_era_calculation(self):
+        """ERA should be (earned_runs * 9) / innings_pitched."""
+        era = calculate_era(earned_runs=27, innings_pitched=81.0)
+        assert era == 3.0
+    
+    def test_ops_calculation(self):
+        """OPS should be OBP + SLG."""
+        stats = PlayerBattingStats(
+            player_id='test',
+            at_bats=100,
+            hits=30,
+            singles=20,
+            doubles=5,
+            triples=2,
+            home_runs=3,
+            walks=10
+        )
+        # OBP = (30 + 10) / (100 + 10) = 0.364
+        # SLG = (20 + 10 + 6 + 12) / 100 = 0.48
+        assert abs(stats.ops - 0.844) < 0.01
+    
+    def test_aggregate_stats_across_games(self):
+        """Stats should aggregate correctly across multiple games."""
+        game1_stats = create_game_stats(hits=2, at_bats=4)
+        game2_stats = create_game_stats(hits=1, at_bats=3)
+        
+        season = aggregate_stats('player_1', [game1_stats, game2_stats])
+        
+        assert season.batting.hits == 3
+        assert season.batting.at_bats == 7
+        assert season.games_played == 2
+```
+
+### 8. Roster Management Tests
+
+```python
+class TestRosterManagement:
+    def test_create_roster(self):
+        """Should create roster with all players active."""
+        players = [Player(player_id=f'p{i}', name=f'Player {i}') 
+                   for i in range(25)]
+        roster = create_roster('team_1', 'Test Team', players)
+        
+        assert len(roster.players) == 25
+        assert all(p.status == PlayerStatus.ACTIVE for p in roster.players)
+    
+    def test_update_player_status(self):
+        """Should update player status correctly."""
+        roster = create_test_roster()
+        updated = update_player_status(roster, 'p1', PlayerStatus.INJURED)
+        
+        entry = updated.get_player('p1')
+        assert entry.status == PlayerStatus.INJURED
+    
+    def test_get_active_players(self):
+        """Should return only active and bench players."""
+        roster = create_roster_with_mixed_statuses()
+        active = roster.get_active_players()
+        
+        assert all(p.status in (PlayerStatus.ACTIVE, PlayerStatus.BENCH) 
+                   for p in active)
+    
+    def test_substitution_record(self):
+        """Should record substitution correctly."""
+        state = create_valid_state()
+        request = create_substitution_request('p1', 'p2')
+        state, event = force_substitution(state, request, rules)
+        
+        assert event.event_type == 'substitution'
+        assert event.details['player_out'] == 'p1'
+        assert event.details['player_in'] == 'p2'
+```
+
+### 9. Multi-Game Archive Tests
+
+```python
+class TestMultiGameArchive:
+    def test_create_empty_archive(self):
+        """Should create empty archive."""
+        archive = create_game_archive('test', 'Test Archive')
+        
+        assert archive.archive_id == 'test'
+        assert len(archive.games) == 0
+    
+    def test_add_game_to_archive(self):
+        """Should add game to archive."""
+        archive = create_game_archive('test', 'Test')
+        final_state = create_finished_game_state()
+        events = list(final_state.event_history)
+        home_roster = create_test_roster('home')
+        away_roster = create_test_roster('away')
+        
+        updated = add_game_to_archive(
+            archive, final_state, events, home_roster, away_roster
+        )
+        
+        assert len(updated.games) == 1
+    
+    def test_reject_incomplete_game(self):
+        """Should reject game not in final status."""
+        archive = create_game_archive('test', 'Test')
+        in_progress_state = create_state(game_status='in_progress')
+        
+        with pytest.raises(ValidationError):
+            add_game_to_archive(archive, in_progress_state, [], None, None)
+    
+    def test_export_import_roundtrip(self):
+        """Archive should survive export/import."""
+        archive = create_populated_archive()
+        
+        exported = export_archive(archive)
+        imported = import_archive(exported)
+        
+        assert imported.archive_id == archive.archive_id
+        assert len(imported.games) == len(archive.games)
+    
+    def test_query_by_team(self):
+        """Should filter games by team."""
+        archive = create_archive_with_multiple_teams()
+        
+        games = query_archive(archive, team_id='tigers')
+        
+        assert all(g.home_team == 'tigers' or g.away_team == 'tigers' 
+                   for g in games)
+    
+    def test_query_by_date_range(self):
+        """Should filter games by date range."""
+        archive = create_archive_with_date_range()
+        
+        games = query_archive(
+            archive, 
+            start_date='2024-06-01', 
+            end_date='2024-06-30'
+        )
+        
+        assert all('2024-06' in g.date for g in games)
+```
+
+### 10. Serialization Tests
+
+```python
+class TestSerialization:
+    def test_canonical_json_determinism(self):
+        """canonical_json_bytes should produce identical output for same input."""
+        payload = {
+            'batter_id': 'player_1',
+            'pitcher_id': 'player_2',
+            'inning': 5,
+            'top': True
+        }
+        
+        result1 = canonical_json_bytes(payload)
+        result2 = canonical_json_bytes(payload)
+        
+        assert result1 == result2
+    
+    def test_canonical_json_key_ordering(self):
+        """Keys should be sorted lexicographically."""
+        payload = {'zebra': 1, 'apple': 2, 'banana': 3}
+        result = canonical_json_bytes(payload)
+        
+        # Keys should appear in order: apple, banana, zebra
+        assert result == b'{"apple":2,"banana":3,"zebra":1}'
+    
+    def test_canonical_json_no_whitespace(self):
+        """Canonical JSON should have no whitespace."""
+        payload = {'key': 'value', 'number': 42}
+        result = canonical_json_bytes(payload)
+        
+        assert b' ' not in result
+        assert b'\n' not in result
+    
+    def test_event_id_excludes_timestamp(self):
+        """event_id should be identical regardless of created_at."""
+        payload = {'batter_id': 'p1', 'inning': 1, 'top': True}
+        
+        id1 = generate_event_id(payload, 'hit.v1', '1')
+        id2 = generate_event_id(payload, 'hit.v1', '1')
+        
+        # Same payload = same ID
+        assert id1 == id2
+    
+    def test_event_id_changes_with_schema_version(self):
+        """Different schema versions should produce different event_ids."""
+        payload = {'batter_id': 'p1', 'inning': 1, 'top': True}
+        
+        id_v1 = generate_event_id(payload, 'hit.v1', '1')
+        id_v2 = generate_event_id(payload, 'hit.v1', '2')
+        
+        assert id_v1 != id_v2
+    
+    def test_state_hash_ignores_timestamps(self):
+        """State hashes should be equal when only timestamps differ."""
+        state1 = {'inning': 1, 'outs': 0, 'created_at': '2024-01-01T10:00:00Z'}
+        state2 = {'inning': 1, 'outs': 0, 'created_at': '2024-01-02T15:30:00Z'}
+        
+        assert states_equal_ignoring_time(state1, state2)
+    
+    def test_state_hash_detects_differences(self):
+        """State hashes should differ when game state differs."""
+        state1 = {'inning': 1, 'outs': 0, 'created_at': '2024-01-01T10:00:00Z'}
+        state2 = {'inning': 1, 'outs': 1, 'created_at': '2024-01-01T10:00:00Z'}
+        
+        assert not states_equal_ignoring_time(state1, state2)
+```
+
+### 11. Cross-Platform Interoperability Tests
+
+```python
+class TestCrossplatformInterop:
+    """Tests to ensure Python and Rust produce identical serialization."""
+    
+    def test_python_rust_canonical_json_match(self):
+        """Python and Rust should produce identical canonical JSON."""
+        payload = {
+            'game_id': 'test-game',
+            'inning': 3,
+            'top': False,
+            'batter_id': 'player_42',
+            'pitcher_id': 'player_17'
+        }
+        
+        python_bytes = canonical_json_bytes(payload)
+        rust_bytes = rust_canonical_json_bytes(payload)  # Via PyO3
+        
+        assert python_bytes == rust_bytes
+    
+    def test_python_rust_event_id_match(self):
+        """Python and Rust should generate identical event_ids."""
+        payload = {'game_id': 'g1', 'inning': 1, 'top': True}
+        
+        python_id = generate_event_id(payload, 'hit.v1', '1')
+        rust_id = rust_generate_event_id(payload, 'hit.v1', '1')  # Via PyO3
+        
+        assert python_id == rust_id
+    
+    def test_state_serialization_roundtrip(self):
+        """State should survive Python -> Rust -> Python roundtrip."""
+        original = create_valid_state()
+        
+        # Serialize in Python
+        python_json = serialize_state(original)
+        
+        # Process in Rust and back
+        rust_processed = rust_process_state(python_json)
+        
+        # Deserialize back in Python
+        restored = deserialize_state(rust_processed)
+        
+        assert states_equal_ignoring_time(
+            serialize_state(original),
+            serialize_state(restored)
+        )
 ```
 
 ## Test Fixtures

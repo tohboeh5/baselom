@@ -2,7 +2,65 @@
 
 ## Overview
 
-This document specifies all data models used in Baselom Core. All models follow immutability principles and are designed for serialization.
+This document specifies all data models used in Baselom Core. All models follow **strict immutability principles** and are designed for deterministic serialization.
+
+## Immutability Requirements
+
+All data models in Baselom are **deeply immutable**:
+
+| Requirement | Description |
+|-------------|-------------|
+| **Frozen dataclasses** | All dataclasses use `frozen=True` |
+| **Immutable containers** | Use `Tuple` instead of `List`, `FrozenDict` instead of `Dict` for nested structures |
+| **No mutation methods** | No methods that modify internal state |
+| **Copy-on-write** | State changes return new instances |
+
+### Python Implementation
+
+```python
+from typing import Tuple, Mapping
+from types import MappingProxyType
+from dataclasses import dataclass
+
+# Use immutable containers
+@dataclass(frozen=True)
+class ImmutableExample:
+    items: Tuple[str, ...]           # Not List[str]
+    metadata: Mapping[str, str]       # Not Dict[str, str]
+
+# Factory function to ensure immutability from construction
+def create_immutable_example(
+    items: Tuple[str, ...],
+    metadata: Mapping[str, str]
+) -> ImmutableExample:
+    """Create ImmutableExample with guaranteed immutable metadata."""
+    immutable_metadata = MappingProxyType(dict(metadata))
+    return ImmutableExample(items=items, metadata=immutable_metadata)
+```
+
+### Rust Implementation
+
+```rust
+// All structs derive Clone but not mutating traits
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct GameState {
+    pub inning: u8,
+    pub top: bool,
+    // Use Vec but treat as immutable (clone for modifications)
+    pub bases: [Option<String>; 3],
+    // ...
+}
+
+impl GameState {
+    // All "mutations" return new instances
+    pub fn with_outs(&self, outs: u8) -> Self {
+        Self {
+            outs,
+            ..self.clone()
+        }
+    }
+}
+```
 
 ## Core Models
 
@@ -13,6 +71,10 @@ The primary state object representing a complete game snapshot.
 #### Definition
 
 ```python
+from typing import Tuple, Mapping, Optional, Literal, Any
+from types import MappingProxyType
+from dataclasses import dataclass
+
 @dataclass(frozen=True)
 class GameState:
     """Immutable representation of baseball game state."""
@@ -41,9 +103,9 @@ class GameState:
     None indicates empty base.
     """
     
-    # Score
-    score: Dict[str, int]
-    """Scores by team: {'home': int, 'away': int}."""
+    # Score (Immutable mapping)
+    score: Mapping[str, int]
+    """Scores by team: {'home': int, 'away': int}. Uses MappingProxyType internally."""
     
     # Team Context
     batting_team: Literal['home', 'away']
@@ -59,40 +121,48 @@ class GameState:
     current_batter_id: Optional[str]
     """Active batter's player ID."""
     
-    # Lineup State
-    lineup_index: Dict[str, int]
+    # Lineup State (Immutable mappings)
+    lineup_index: Mapping[str, int]
     """
     Current batting order position per team.
     {'home': 0-8, 'away': 0-8}
+    Uses MappingProxyType internally.
     """
     
-    lineups: Dict[str, Tuple[str, ...]]
+    lineups: Mapping[str, Tuple[str, ...]]
     """
     Batting order per team.
     {'home': (id1, id2, ..., id9), 'away': (id1, id2, ..., id9)}
+    Uses MappingProxyType internally.
     """
     
-    # Pitchers
-    pitchers: Dict[str, str]
-    """Current pitcher per team: {'home': pitcher_id, 'away': pitcher_id}."""
+    # Pitchers (Immutable mapping)
+    pitchers: Mapping[str, str]
+    """Current pitcher per team: {'home': pitcher_id, 'away': pitcher_id}. Uses MappingProxyType internally."""
     
-    # Game Progress
-    inning_runs: Dict[str, int]
-    """Runs scored in current half-inning per team."""
+    # Game Progress (Immutable mapping)
+    inning_runs: Mapping[str, int]
+    """Runs scored in current half-inning per team. Uses MappingProxyType internally."""
     
     game_status: Literal['in_progress', 'final', 'suspended']
     """Current game status."""
     
     # Event Tracking
-    event_history: Tuple[Dict[str, Any], ...]
-    """Immutable sequence of all events in the game."""
+    event_history: Tuple[Mapping[str, Any], ...]
+    """
+    Immutable sequence of event references.
+    
+    Note: For efficiency, this may store only event_ids rather than full events.
+    Full event data is retrieved from the payload store when needed.
+    See serialization.md for the Event History Storage Architecture.
+    """
     
     # Metadata
     rules_version: str
     """Version identifier for rules applied."""
     
     created_at: str
-    """ISO 8601 timestamp of state creation."""
+    """ISO 8601 timestamp of state creation (UTC with Z suffix)."""
 ```
 
 #### Field Constraints
@@ -249,35 +319,83 @@ CLASSIC_RULES = GameRules(
 
 ### Event
 
-Immutable record of a game event.
+Immutable record of a game event with **envelope/payload structure**.
 
-#### Base Event Structure
+#### Event Architecture
+
+Events consist of two parts:
+
+| Part | Purpose | Included in event_id |
+|------|---------|---------------------|
+| **Envelope** | Metadata (ID, type, timestamps, source) | No (except event_type and schema_version) |
+| **Payload** | Essential facts for replay | Yes |
+
+This separation enables:
+- Content-based identification (same play = same ID, regardless of timestamp)
+- Efficient storage (deduplication by event_id)
+- Clear audit trail (envelope stores when/who/where)
+
+#### Event Envelope
 
 ```python
 @dataclass(frozen=True)
-class Event:
-    """Base event class for all game events."""
-    
-    event_type: str
-    """Event type identifier."""
+class EventEnvelope:
+    """Metadata wrapper for events."""
     
     event_id: str
-    """Unique event identifier (UUID)."""
+    """
+    Content-based identifier: SHA-256(schema_version|event_type|canonical_json(payload)).
+    NOT a UUID - derived from payload content.
+    """
     
-    timestamp: str
-    """ISO 8601 timestamp."""
+    event_type: str
+    """Event type with version suffix (e.g., 'hit.v1', 'out.v1')."""
+    
+    schema_version: str
+    """Schema version for payload structure (e.g., '1')."""
+    
+    created_at: str
+    """ISO 8601 timestamp (UTC with Z suffix). NOT included in event_id calculation."""
+    
+    actor: Optional[str] = None
+    """Entity that created this event (e.g., 'baselom-engine-v0.9')."""
+    
+    source: Optional[str] = None
+    """Source system identifier (e.g., 'game-server-1')."""
+```
+
+#### Base Event Payload
+
+```python
+@dataclass(frozen=True)
+class EventPayload:
+    """Base payload class containing essential facts for replay."""
+    
+    game_id: str
+    """Game identifier."""
     
     inning: int
     """Inning number when event occurred."""
     
     top: bool
-    """Half inning (top/bottom)."""
+    """Half inning (top=True, bottom=False)."""
     
     outs_before: int
-    """Outs before the event."""
+    """Outs before the event (0-2)."""
+```
+
+#### Complete Event
+
+```python
+@dataclass(frozen=True)
+class Event:
+    """Complete event with envelope and payload."""
     
-    outs_after: int
-    """Outs after the event."""
+    envelope: EventEnvelope
+    """Event metadata."""
+    
+    payload: EventPayload  # Or specific payload subclass
+    """Event content."""
 ```
 
 #### Event Types
@@ -294,8 +412,9 @@ class Event:
 
 ```python
 @dataclass(frozen=True)
-class PitchEvent(Event):
-    event_type: Literal['ball', 'strike_called', 'strike_swinging', 'foul', 'foul_tip']
+class PitchEventPayload(EventPayload):
+    """Payload for pitch events."""
+    pitch_result: Literal['ball', 'strike_called', 'strike_swinging', 'foul', 'foul_tip']
     pitcher_id: str
     batter_id: str
     balls_after: int
@@ -315,13 +434,22 @@ class PitchEvent(Event):
 
 ```python
 @dataclass(frozen=True)
-class HitEvent(Event):
-    event_type: Literal['single', 'double', 'triple', 'home_run', 'ground_rule_double']
+class HitEventPayload(EventPayload):
+    """Payload for hit events.
+    
+    Note: 'rbi' and 'runners_scored' are NOT stored - they are derived during replay.
+    Only essential facts (who hit, where runners moved) are stored.
+    """
+    hit_type: Literal['single', 'double', 'triple', 'home_run', 'ground_rule_double']
     batter_id: str
     pitcher_id: str
-    rbi: int
-    runners_scored: Tuple[str, ...]
-    runners_advanced: Tuple[Dict[str, Any], ...]
+    runner_advances: Tuple[Mapping[str, Any], ...]
+    """
+    Minimal runner movement info.
+    Each entry: {'runner_id': str, 'from_base': int, 'to_base': int}
+    from_base: 0=batter, 1-3=bases
+    to_base: 1-3=bases, 4=home
+    """
 ```
 
 ##### Out Events
@@ -341,8 +469,9 @@ class HitEvent(Event):
 
 ```python
 @dataclass(frozen=True)
-class OutEvent(Event):
-    event_type: str
+class OutEventPayload(EventPayload):
+    """Payload for out events."""
+    out_type: str
     batter_id: str
     pitcher_id: str
     fielders: Tuple[str, ...]
@@ -360,12 +489,13 @@ class OutEvent(Event):
 
 ```python
 @dataclass(frozen=True)
-class WalkEvent(Event):
-    event_type: Literal['walk', 'intentional_walk', 'hit_by_pitch']
+class WalkEventPayload(EventPayload):
+    """Payload for walk/HBP events."""
+    walk_type: Literal['walk', 'intentional_walk', 'hit_by_pitch']
     batter_id: str
     pitcher_id: str
-    runners_advanced: Tuple[Dict[str, Any], ...]
-    run_scored: bool
+    runner_advances: Tuple[Mapping[str, Any], ...]
+    """Forced runner advances due to walk. Run scored is derived."""
 ```
 
 ##### Base Running Events
@@ -401,10 +531,31 @@ class BaseRunningEvent(Event):
 
 ```python
 @dataclass(frozen=True)
-class GameEvent(Event):
-    event_type: str
-    details: Dict[str, Any]
+class GameEventPayload(EventPayload):
+    """Payload for game management events."""
+    event_subtype: str  # 'half_inning_end', 'game_start', etc.
+    details: Mapping[str, Any]  # Immutable mapping for event-specific details
 ```
+
+#### Legacy Event Format (Deprecated)
+
+For backward compatibility, the flat event format is still supported:
+
+```python
+@dataclass(frozen=True)
+class LegacyEvent:
+    """Deprecated flat event format. Use Event with envelope/payload instead."""
+    event_type: str
+    event_id: str  # UUID in legacy format
+    timestamp: str
+    inning: int
+    top: bool
+    outs_before: int
+    outs_after: int
+    # ... additional fields depending on event type
+```
+
+**Migration Note**: Legacy events with UUID-based `event_id` should be migrated to the new format with content-based IDs. See [Serialization - Migration Strategy](./serialization.md#migration-strategy).
 
 ---
 
@@ -534,6 +685,19 @@ class BattedBallResult(Enum):
 
 ```python
 class GameStatus(Enum):
+    """
+    Full enumeration of possible game statuses.
+    
+    Note: GameState.game_status field only uses a subset of these values:
+    - 'in_progress': Game is actively being played
+    - 'final': Game has completed normally
+    - 'suspended': Game was suspended and may be resumed
+    
+    The additional statuses are used in scheduling and archive contexts:
+    - 'not_started': Game has not begun (used in MultiGameArchive scheduling)
+    - 'postponed': Game was postponed before starting
+    - 'cancelled': Game was cancelled
+    """
     NOT_STARTED = 'not_started'
     IN_PROGRESS = 'in_progress'
     FINAL = 'final'
@@ -541,6 +705,8 @@ class GameStatus(Enum):
     POSTPONED = 'postponed'
     CANCELLED = 'cancelled'
 ```
+
+**GameState.game_status Valid Values**: Only `'in_progress'`, `'final'`, and `'suspended'` are valid for the `GameState.game_status` field. Other statuses are used for game scheduling and archive metadata.
 
 ---
 
@@ -556,7 +722,19 @@ TeamId: TypeAlias = Literal['home', 'away']
 """Team identifier."""
 
 BaseIndex: TypeAlias = Literal[0, 1, 2]
-"""Base index: 0=first, 1=second, 2=third."""
+"""Base index for base state: 0=first, 1=second, 2=third."""
+
+BaseOrHome: TypeAlias = Literal[0, 1, 2, 3]
+"""Base index including home plate: 0=first, 1=second, 2=third, 3=home.
+
+Used in runner advancement operations where the destination can be home plate.
+This differs from BaseIndex which only represents occupied base positions (0-2).
+
+Example usage:
+    runner_advances: Dict[BaseIndex, BaseOrHome]  # from_base -> to_base
+    # {0: 2}  means runner on 1st advances to 3rd
+    # {2: 3}  means runner on 3rd scores (advances to home)
+"""
 
 InningHalf: TypeAlias = Literal['top', 'bottom']
 """Half of an inning."""
@@ -566,6 +744,663 @@ Bases: TypeAlias = Tuple[Optional[PlayerId], Optional[PlayerId], Optional[Player
 ```
 
 ---
+
+## Statistics Models
+
+### PlayerBattingStats
+
+Batting statistics for a player.
+
+```python
+@dataclass(frozen=True)
+class PlayerBattingStats:
+    """Batting statistics for a single player."""
+    
+    player_id: str
+    """Player identifier."""
+    
+    # Plate Appearance Stats
+    plate_appearances: int = 0
+    """Total plate appearances."""
+    
+    at_bats: int = 0
+    """Official at-bats (PA minus walks, HBP, sacrifices)."""
+    
+    # Hit Stats
+    hits: int = 0
+    """Total hits."""
+    
+    singles: int = 0
+    """Number of singles."""
+    
+    doubles: int = 0
+    """Number of doubles."""
+    
+    triples: int = 0
+    """Number of triples."""
+    
+    home_runs: int = 0
+    """Number of home runs."""
+    
+    # Production Stats
+    runs: int = 0
+    """Runs scored."""
+    
+    rbi: int = 0
+    """Runs batted in."""
+    
+    # Discipline Stats
+    walks: int = 0
+    """Base on balls."""
+    
+    strikeouts: int = 0
+    """Strikeouts."""
+    
+    hit_by_pitch: int = 0
+    """Times hit by pitch."""
+    
+    # Calculated Properties
+    @property
+    def batting_average(self) -> float:
+        """Calculate batting average (H/AB)."""
+        return self.hits / self.at_bats if self.at_bats > 0 else 0.0
+    
+    @property
+    def on_base_percentage(self) -> float:
+        """Calculate on-base percentage."""
+        total = self.at_bats + self.walks + self.hit_by_pitch
+        if total == 0:
+            return 0.0
+        return (self.hits + self.walks + self.hit_by_pitch) / total
+    
+    @property
+    def slugging_percentage(self) -> float:
+        """Calculate slugging percentage."""
+        if self.at_bats == 0:
+            return 0.0
+        total_bases = (self.singles + 2 * self.doubles + 
+                      3 * self.triples + 4 * self.home_runs)
+        return total_bases / self.at_bats
+    
+    @property
+    def ops(self) -> float:
+        """Calculate OPS (OBP + SLG)."""
+        return self.on_base_percentage + self.slugging_percentage
+```
+
+---
+
+### PlayerPitchingStats
+
+Pitching statistics for a player.
+
+```python
+@dataclass(frozen=True)
+class PlayerPitchingStats:
+    """Pitching statistics for a single player."""
+    
+    player_id: str
+    """Player identifier."""
+    
+    # Appearance Stats
+    games: int = 0
+    """Games pitched."""
+    
+    games_started: int = 0
+    """Games started as pitcher."""
+    
+    innings_pitched: float = 0.0
+    """Innings pitched (fractional, e.g., 6.2 = 6 2/3 innings)."""
+    
+    # Result Stats
+    wins: int = 0
+    """Wins."""
+    
+    losses: int = 0
+    """Losses."""
+    
+    saves: int = 0
+    """Saves."""
+    
+    # Performance Stats
+    hits_allowed: int = 0
+    """Hits allowed."""
+    
+    runs_allowed: int = 0
+    """Runs allowed."""
+    
+    earned_runs: int = 0
+    """Earned runs allowed."""
+    
+    walks_allowed: int = 0
+    """Walks issued."""
+    
+    strikeouts: int = 0
+    """Strikeouts."""
+    
+    home_runs_allowed: int = 0
+    """Home runs allowed."""
+    
+    # Pitch Count
+    pitches_thrown: int = 0
+    """Total pitches thrown."""
+    
+    # Calculated Properties
+    @property
+    def era(self) -> float:
+        """Calculate earned run average."""
+        if self.innings_pitched == 0:
+            return 0.0
+        return (self.earned_runs * 9) / self.innings_pitched
+    
+    @property
+    def whip(self) -> float:
+        """Calculate WHIP (Walks + Hits per Inning Pitched)."""
+        if self.innings_pitched == 0:
+            return 0.0
+        return (self.walks_allowed + self.hits_allowed) / self.innings_pitched
+    
+    @property
+    def strikeout_rate(self) -> float:
+        """Calculate K/9 (strikeouts per 9 innings)."""
+        if self.innings_pitched == 0:
+            return 0.0
+        return (self.strikeouts * 9) / self.innings_pitched
+```
+
+---
+
+### PlayerFieldingStats
+
+Fielding statistics for a player.
+
+```python
+@dataclass(frozen=True)
+class PlayerFieldingStats:
+    """Fielding statistics for a single player."""
+    
+    player_id: str
+    """Player identifier."""
+    
+    position: str
+    """Primary fielding position."""
+    
+    games: int = 0
+    """Games played at position."""
+    
+    innings: float = 0.0
+    """Innings played at position."""
+    
+    putouts: int = 0
+    """Putouts."""
+    
+    assists: int = 0
+    """Assists."""
+    
+    errors: int = 0
+    """Errors committed."""
+    
+    double_plays: int = 0
+    """Double plays participated in."""
+    
+    @property
+    def fielding_percentage(self) -> float:
+        """Calculate fielding percentage."""
+        total_chances = self.putouts + self.assists + self.errors
+        if total_chances == 0:
+            return 0.0
+        return (self.putouts + self.assists) / total_chances
+```
+
+---
+
+### GamePlayerStats
+
+Combined statistics for a player in a single game.
+
+```python
+@dataclass(frozen=True)
+class GamePlayerStats:
+    """Statistics for a player in a single game."""
+    
+    player_id: str
+    """Player identifier."""
+    
+    game_id: str
+    """Game identifier."""
+    
+    team: Literal['home', 'away']
+    """Team the player was on."""
+    
+    batting: Optional[PlayerBattingStats] = None
+    """Batting stats for this game."""
+    
+    pitching: Optional[PlayerPitchingStats] = None
+    """Pitching stats for this game (if applicable)."""
+    
+    fielding: Optional[PlayerFieldingStats] = None
+    """Fielding stats for this game."""
+    
+    started: bool = False
+    """Whether player started the game."""
+    
+    entered_game: bool = True
+    """Whether player entered the game."""
+    
+    batting_order: Optional[int] = None
+    """Position in batting order (0-8, None if didn't bat)."""
+```
+
+---
+
+## Roster Models
+
+### PlayerStatus
+
+Status of a player on the roster.
+
+```python
+class PlayerStatus(Enum):
+    """Status of a player on the roster."""
+    
+    ACTIVE = 'active'
+    """Player is on active roster and available to play."""
+    
+    BENCH = 'bench'
+    """Player is on bench, available as substitute."""
+    
+    INJURED = 'injured'
+    """Player is injured and not available."""
+    
+    INACTIVE = 'inactive'
+    """Player is on inactive list."""
+    
+    STARTING = 'starting'
+    """Player is in starting lineup for current game."""
+    
+    SUBSTITUTED_OUT = 'substituted_out'
+    """Player was substituted out of current game."""
+```
+
+---
+
+### Player
+
+Player information and current status.
+
+```python
+@dataclass(frozen=True)
+class Player:
+    """Player information."""
+    
+    player_id: str
+    """Unique player identifier."""
+    
+    name: str
+    """Player display name."""
+    
+    number: Optional[int] = None
+    """Jersey number."""
+    
+    positions: Tuple[str, ...] = ()
+    """Positions player can play (e.g., ('P', 'OF'))."""
+    
+    bats: Literal['L', 'R', 'S'] = 'R'
+    """Batting hand (Left, Right, Switch)."""
+    
+    throws: Literal['L', 'R'] = 'R'
+    """Throwing hand."""
+```
+
+---
+
+### RosterEntry
+
+Entry in a team roster.
+
+```python
+@dataclass(frozen=True)
+class RosterEntry:
+    """Entry for a player on a team roster."""
+    
+    player: Player
+    """Player information."""
+    
+    status: PlayerStatus = PlayerStatus.ACTIVE
+    """Current player status."""
+    
+    current_position: Optional[str] = None
+    """Current defensive position (if in game)."""
+    
+    games_played: int = 0
+    """Games played this season."""
+    
+    season_batting_stats: Optional[PlayerBattingStats] = None
+    """Accumulated batting stats for season."""
+    
+    season_pitching_stats: Optional[PlayerPitchingStats] = None
+    """Accumulated pitching stats for season."""
+```
+
+---
+
+### Roster
+
+Complete team roster.
+
+```python
+@dataclass(frozen=True)
+class Roster:
+    """Complete roster for a team."""
+    
+    team_id: str
+    """Team identifier."""
+    
+    team_name: str
+    """Team display name."""
+    
+    players: Tuple[RosterEntry, ...]
+    """All players on roster."""
+    
+    def get_active_players(self) -> Tuple[RosterEntry, ...]:
+        """Get players available to play."""
+        return tuple(p for p in self.players 
+                    if p.status in (PlayerStatus.ACTIVE, PlayerStatus.BENCH))
+    
+    def get_player(self, player_id: str) -> Optional[RosterEntry]:
+        """Get a specific player by ID."""
+        for entry in self.players:
+            if entry.player.player_id == player_id:
+                return entry
+        return None
+```
+
+---
+
+### SubstitutionRecord
+
+Record of a substitution during a game.
+
+```python
+@dataclass(frozen=True)
+class SubstitutionRecord:
+    """Record of a player substitution."""
+    
+    game_id: str
+    """Game identifier."""
+    
+    inning: int
+    """Inning when substitution occurred."""
+    
+    top: bool
+    """Half of inning."""
+    
+    team: Literal['home', 'away']
+    """Team making substitution."""
+    
+    player_out_id: str
+    """Player removed from game."""
+    
+    player_in_id: str
+    """Player entering game."""
+    
+    position: str
+    """Defensive position."""
+    
+    batting_order: int
+    """Batting order position (0-8)."""
+    
+    timestamp: str
+    """ISO 8601 timestamp."""
+```
+
+---
+
+## Multi-Game Archive Models
+
+### GameRecord
+
+Complete record of a single game for archiving.
+
+```python
+@dataclass(frozen=True)
+class GameRecord:
+    """Complete record of a baseball game."""
+    
+    game_id: str
+    """Unique game identifier."""
+    
+    date: str
+    """Game date (ISO 8601 date)."""
+    
+    home_team: str
+    """Home team identifier."""
+    
+    away_team: str
+    """Away team identifier."""
+    
+    final_state: GameState
+    """Final game state."""
+    
+    events: Tuple[Event, ...]
+    """All events in chronological order."""
+    
+    player_stats: Tuple[GamePlayerStats, ...]
+    """Statistics for all players who participated."""
+    
+    substitutions: Tuple[SubstitutionRecord, ...]
+    """All substitutions made during game."""
+    
+    rules: GameRules
+    """Rules used for this game."""
+    
+    metadata: Dict[str, Any]
+    """Additional game metadata (venue, weather, etc.)."""
+```
+
+---
+
+### MultiGameArchive
+
+Archive containing multiple games.
+
+```python
+@dataclass(frozen=True)
+class MultiGameArchive:
+    """Archive of multiple baseball games."""
+    
+    archive_id: str
+    """Unique archive identifier."""
+    
+    name: str
+    """Archive name (e.g., '2024 Season', 'Tournament')."""
+    
+    description: str
+    """Archive description."""
+    
+    games: Tuple[GameRecord, ...]
+    """All games in the archive."""
+    
+    rosters: Dict[str, Roster]
+    """Rosters by team_id."""
+    
+    created_at: str
+    """ISO 8601 timestamp of archive creation."""
+    
+    updated_at: str
+    """ISO 8601 timestamp of last update."""
+    
+    baselom_version: str
+    """Baselom version used to create archive."""
+    
+    def get_games_by_team(self, team_id: str) -> Tuple[GameRecord, ...]:
+        """Get all games for a specific team."""
+        return tuple(g for g in self.games 
+                    if g.home_team == team_id or g.away_team == team_id)
+    
+    def get_games_by_date_range(
+        self, 
+        start_date: str, 
+        end_date: str
+    ) -> Tuple[GameRecord, ...]:
+        """Get games within a date range."""
+        return tuple(g for g in self.games 
+                    if start_date <= g.date <= end_date)
+```
+
+---
+
+### SeasonStats
+
+Aggregated statistics for a season or period.
+
+```python
+@dataclass(frozen=True)
+class SeasonStats:
+    """Aggregated statistics across multiple games."""
+    
+    player_id: str
+    """Player identifier."""
+    
+    period_name: str
+    """Name of period (e.g., '2024 Season', 'June 2024')."""
+    
+    games_played: int
+    """Total games played."""
+    
+    batting: PlayerBattingStats
+    """Aggregated batting statistics."""
+    
+    pitching: Optional[PlayerPitchingStats] = None
+    """Aggregated pitching statistics (if applicable)."""
+    
+    fielding: Optional[PlayerFieldingStats] = None
+    """Aggregated fielding statistics."""
+```
+
+---
+
+## Data Model Validation Invariants
+
+All GameState instances must satisfy these invariants. The `validate_state()` function checks these conditions and returns a `ValidationResult`.
+
+### Structural Invariants
+
+| Invariant | Condition | validate_state() Error |
+|-----------|-----------|------------------------|
+| **Valid outs range** | `0 <= outs <= 2` | `ValidationError: "outs must be in range [0, 2], got {value}"` |
+| **Valid balls range** | `0 <= balls <= 3` | `ValidationError: "balls must be in range [0, 3], got {value}"` |
+| **Valid strikes range** | `0 <= strikes <= 2` | `ValidationError: "strikes must be in range [0, 2], got {value}"` |
+| **Valid inning** | `inning >= 1` | `ValidationError: "inning must be >= 1, got {value}"` |
+| **Non-negative scores** | `score['home'] >= 0 and score['away'] >= 0` | `ValidationError: "scores must be non-negative, got {scores}"` |
+| **Valid lineup size** | `len(lineups['home']) == 9 and len(lineups['away']) == 9` | `ValidationError: "lineup must contain exactly 9 players, got {count} for {team}"` |
+| **Valid lineup index** | `0 <= lineup_index[team] <= 8` | `ValidationError: "lineup_index must be in range [0, 8], got {value} for {team}"` |
+| **Bases tuple size** | `len(bases) == 3` | `ValidationError: "bases must be a tuple of 3 elements, got {count}"` |
+
+### Consistency Invariants
+
+| Invariant | Condition | validate_state() Error |
+|-----------|-----------|------------------------|
+| **No duplicate runners** | Each player ID appears at most once in `bases` | `ValidationError: "duplicate runner '{player_id}' found on multiple bases"` |
+| **Lineup uniqueness** | No duplicate player IDs in same lineup | `ValidationError: "duplicate player '{player_id}' in {team} lineup"` |
+| **Current batter in lineup** | `current_batter_id in lineups[batting_team]` (if not None) | `ValidationError: "current batter '{id}' not in {team} lineup"` |
+| **Current pitcher in lineup** | `current_pitcher_id in lineups[fielding_team]` (if not None) | `ValidationError: "current pitcher '{id}' not in {team} lineup"` |
+| **Team consistency** | `batting_team != fielding_team` | `ValidationError: "batting_team and fielding_team cannot be the same"` |
+| **Score monotonicity** | Scores only increase between states | `Warning: "score decreased from {old} to {new} - possible state corruption"` (warning only) |
+| **No player on multiple bases** | Runner IDs unique across bases | `ValidationError: "player '{id}' cannot be on multiple bases simultaneously"` |
+
+### Semantic Invariants
+
+| Invariant | Condition | validate_state() Error |
+|-----------|-----------|------------------------|
+| **Valid game status** | `game_status in ['in_progress', 'final', 'suspended']` | `ValidationError: "invalid game_status '{status}', must be one of: in_progress, final, suspended"` |
+| **Final game invariant** | If `game_status == 'final'`, then `outs == 0` and specific inning/score conditions | `ValidationError: "final game must have valid end conditions"` |
+| **Inning-outs consistency** | If `outs == 3`, should transition to next half-inning | `Warning: "outs == 3 detected - half-inning should have ended"` (warning only) |
+| **Count-outs dependency** | If `outs >= 3`, state is invalid | `ValidationError: "outs cannot be >= 3, got {outs}"` |
+
+### DH-Specific Invariants (when designated_hitter=True)
+
+| Invariant | Condition | validate_state() Error |
+|-----------|-----------|------------------------|
+| **DH in lineup** | If DH rule active, lineup contains DH | `ValidationError: "designated hitter not found in lineup"` |
+| **Pitcher not in batting order** | Pitcher ID not at a batting position (if DH active) | `ValidationError: "pitcher in batting order with DH active"` |
+
+### validate_state() Behavior
+
+```python
+from baselom_core import validate_state, ValidationResult
+
+# Valid state
+result = validate_state(valid_state)
+assert result.is_valid == True
+assert len(result.errors) == 0
+
+# Invalid state - out of range
+bad_state = state_with_outs(5)
+result = validate_state(bad_state)
+assert result.is_valid == False
+assert len(result.errors) > 0
+assert "outs must be in range [0, 2]" in result.errors[0]
+
+# State with warnings
+warning_state = state_with_score_decrease()
+result = validate_state(warning_state)
+assert result.is_valid == True  # Still valid
+assert len(result.warnings) > 0
+assert "score decreased" in result.warnings[0]
+```
+
+### Exception Types
+
+`validate_state()` returns a `ValidationResult` and does NOT raise exceptions. However, other API functions may raise:
+
+| Exception | When Raised | Example |
+|-----------|-------------|---------|
+| `ValidationError` | Invalid input to API function | `initial_game_state(home_lineup=['h1', 'h2'])` raises `ValidationError: "lineup must contain exactly 9 players"` |
+| `StateError` | Invalid state transition attempted | `apply_pitch()` on a state with `game_status='final'` raises `StateError: "cannot apply pitch to finished game"` |
+| `RuleViolation` | Rule constraint violated | Invalid substitution raises `RuleViolation: "player not in roster"` |
+
+### Input Validation at Entry Points
+
+**Critical**: Python's type hints (e.g., `Lineup = Tuple[str, str, ..., str]` with 9 elements) are NOT enforced at runtime. Input validation MUST be performed at API entry points:
+
+```python
+def initial_game_state(
+    home_lineup: Tuple[str, ...],
+    away_lineup: Tuple[str, ...],
+    rules: GameRules
+) -> GameState:
+    """Create initial game state.
+    
+    Args:
+        home_lineup: Tuple of 9 player IDs
+        away_lineup: Tuple of 9 player IDs
+        rules: Game rules configuration
+    
+    Raises:
+        ValidationError: If lineups are not exactly 9 players
+        ValidationError: If lineups contain duplicates
+    
+    Note: Type hints specify tuples but do not enforce size at runtime.
+          Size checking is performed explicitly in the function body.
+    """
+    # Explicit size check required
+    if len(home_lineup) != 9:
+        raise ValidationError(f"home_lineup must contain exactly 9 players, got {len(home_lineup)}")
+    if len(away_lineup) != 9:
+        raise ValidationError(f"away_lineup must contain exactly 9 players, got {len(away_lineup)}")
+    
+    # Duplicate check
+    if len(set(home_lineup)) != 9:
+        raise ValidationError("home_lineup contains duplicate players")
+    if len(set(away_lineup)) != 9:
+        raise ValidationError("away_lineup contains duplicate players")
+    
+    # Proceed with state creation
+    ...
+```
+
+See [API Reference](./api-reference.md) for validation behavior of all public functions.
 
 ## JSON Schema
 
