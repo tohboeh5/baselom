@@ -56,6 +56,8 @@ class GameState:
         inning: 1-based inning number.
         top: True if top of inning (away team batting).
         outs: Number of outs (0-2).
+        balls: Current ball count (0-3).
+        strikes: Current strike count (0-2).
         bases: Base runners (first, second, third).
         score: Current score.
         current_batter_id: ID of current batter.

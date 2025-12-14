@@ -25,6 +25,22 @@ pub struct GameState {
     pub current_pitcher_id: Option<String>,
 }
 
+impl Default for GameState {
+    fn default() -> Self {
+        Self {
+            inning: 1,
+            top: true,
+            outs: 0,
+            balls: 0,
+            strikes: 0,
+            bases: (None, None, None),
+            score: Score::default(),
+            current_batter_id: None,
+            current_pitcher_id: None,
+        }
+    }
+}
+
 /// Score tracking for both teams.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct Score {

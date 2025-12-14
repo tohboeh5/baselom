@@ -141,19 +141,12 @@ fn process_walk(state: &GameState) -> GameState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::Score;
 
     fn base_state() -> GameState {
         GameState {
-            inning: 1,
-            top: true,
-            outs: 0,
-            balls: 0,
-            strikes: 0,
-            bases: (None, None, None),
-            score: Score::default(),
             current_batter_id: Some("b1".to_string()),
             current_pitcher_id: Some("p1".to_string()),
+            ..GameState::default()
         }
     }
 
