@@ -1,8 +1,10 @@
 # Development Guide
 
+> **Note**: This guide focuses on the **mise-based development workflow** introduced in v0.1.0+. For detailed manual setup instructions, see the sections below or the original documentation.
+
 ## Quick Start with mise
 
-**Recommended**: Use [mise](https://mise.jdx.dev/) for consistent development environment.
+**Recommended**: Use [mise](https://mise.jdx.dev/) for consistent development environment across all platforms.
 
 ```bash
 # Clone and setup

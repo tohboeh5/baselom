@@ -8,14 +8,55 @@
 
 Baselom Core implements inning progression, base/runner state, scoring, and substitutions as an immutable, testable Finite State Machine (FSM). Like [Polars](https://github.com/pola-rs/polars), the core engine is written in Rust for maximum performance and exposed to Python via PyO3/maturin.
 
+## 🎯 Use Cases
+
+Baselom Core is designed for both **game simulations** and **real-world game management**:
+
+| Use Case | Description |
+|----------|-------------|
+| **⚾ Real Game Score Management** | Track actual baseball games with official scoring, substitutions, and statistics |
+| **🎮 Game Simulations** | Build baseball video games, fantasy baseball engines, or AI training environments |
+| **📊 Statistics & Analytics** | Calculate batting averages, ERA, and other statistics across multiple games |
+| **📝 Score Archiving** | Store and replay complete game data using Baselom's multi-game archive format |
+
 ## ✨ Key Features
 
 - **🎯 Single Responsibility**: Only handles rule compliance and state transitions. No randomness, probabilities, player abilities, or tactics.
 - **🔒 Immutable State**: `GameState` is immutable—state changes always return a new instance.
 - **✅ Testable**: Fine-grained use cases can be covered by tests with >90% coverage target.
 - **⚙️ Configurable Rules**: DH, extra innings, tiebreaker rules externalized via `GameRules`.
-- **📝 Event-Oriented**: All plays output as `Event` objects, immediately serializable to JSON.
+- **📝 Event-Oriented**: All plays output as `Event` objects with content-based IDs (SHA-256 of payload), immediately serializable to JSON.
 - **⚡ High Performance**: Rust core with Python bindings via PyO3/maturin.
+- **📊 Statistics Engine**: Calculate batting averages, ERA, OPS, and other statistics across multiple games.
+- **👥 Roster Management**: Track player states including bench, active roster, and substitution history.
+- **📦 Multi-Game Archive**: Store and retrieve complete game data in Baselom's native JSON format.
+
+## 🔑 Event Identification and Reproducibility
+
+Baselom uses **content-addressed event IDs** for reproducibility and semantic equality:
+
+```
+event_id = SHA-256(schema_version|event_type|canonical_json(payload))
+```
+
+**Fields included in event_id:**
+- `schema_version`: Event payload schema version
+- `event_type`: Type identifier (e.g., `hit.v1`, `out.v1`)
+- `payload`: Essential facts only (batter, pitcher, hit type, runner movements)
+
+**Fields excluded from event_id:**
+- `created_at`: Timestamp varies per event creation
+- `actor`: Event source/creator metadata
+- `source`: System identifier metadata
+- Derived values: `rbi`, `runs_scored` (computed during replay)
+
+**Why this design?**
+- **Reproducibility**: Same play always generates same event_id regardless of when/where it's created
+- **Deduplication**: Identical events detected automatically via matching IDs
+- **Semantic Equality**: Compare events based on game facts, not timestamps
+- **Audit Trail**: Timestamps preserved in envelope for audit purposes without affecting content identity
+
+See [Serialization Documentation](./docs/serialization.md) for complete details on event structure and ID generation.
 
 ## 🏗️ Architecture
 
@@ -57,10 +98,10 @@ state = initial_game_state(
     rules=rules
 )
 
-# Apply a pitch result
-state, event = apply_pitch(state, 'hit_single', rules)
+# Apply a pitch result (ball put in play resulting in a single)
+state, event = apply_pitch(state, 'in_play', rules, batted_ball_result='single')
 print(event)
-# {'type': 'single', 'batter': 'a1', 'rbi': 0, ...}
+# {'event_type': 'single', 'batter_id': 'a1', 'rbi': 0, ...}
 
 # State is immutable - original unchanged
 print(state.bases)  # ('a1', None, None)
@@ -73,22 +114,32 @@ print(state.bases)  # ('a1', None, None)
 Immutable representation of the current game state:
 
 ```python
+from typing import Literal, Tuple, Mapping, Optional, Any
+
 @dataclass(frozen=True)
 class GameState:
     inning: int                     # 1-based inning number
     top: bool                       # True = top of inning
     outs: int                       # 0..2
+    balls: int                      # 0..3
+    strikes: int                    # 0..2
     bases: Tuple[Optional[str], Optional[str], Optional[str]]
-    score: Dict[str, int]           # {'home': int, 'away': int}
-    batting_team: str               # 'home' or 'away'
-    fielding_team: str
+    score: Mapping[str, int]        # {'home': int, 'away': int}
+    batting_team: Literal['home', 'away']
+    fielding_team: Literal['home', 'away']
     current_pitcher_id: Optional[str]
     current_batter_id: Optional[str]
-    lineup_index: Dict[str, int]
-    inning_runs: Dict[str, int]
-    event_history: Tuple[dict, ...]
+    lineup_index: Mapping[str, int] # {'home': 0-8, 'away': 0-8}
+    lineups: Mapping[str, Tuple[str, ...]]
+    pitchers: Mapping[str, str]     # {'home': pitcher_id, 'away': pitcher_id}
+    inning_runs: Mapping[str, int]
+    game_status: Literal['in_progress', 'final', 'suspended']
+    event_history: Tuple[Mapping[str, Any], ...]  # Event references (may be event_ids)
     rules_version: str
+    created_at: str                 # ISO 8601 timestamp (UTC with Z suffix)
 ```
+
+For complete field specifications, see [Data Models](./docs/data-models.md).
 
 ### GameRules
 
@@ -117,6 +168,32 @@ class GameRules:
 | `force_substitution()` | Handle player substitutions |
 | `end_half_inning()` | Transition to next half-inning |
 
+### Statistics Functions
+
+| Function | Description |
+|----------|-------------|
+| `calculate_batting_average()` | Calculate batting average from player stats |
+| `calculate_era()` | Calculate earned run average for pitcher |
+| `calculate_player_stats()` | Generate comprehensive stats for a player |
+| `aggregate_stats()` | Aggregate stats across multiple games |
+
+### Multi-Game Archive Functions
+
+| Function | Description |
+|----------|-------------|
+| `create_game_archive()` | Create a new multi-game archive |
+| `add_game_to_archive()` | Add a completed game to archive |
+| `export_archive()` | Export archive to Baselom JSON format |
+| `import_archive()` | Import archive from Baselom JSON format |
+
+### Roster Management Functions
+
+| Function | Description |
+|----------|-------------|
+| `create_roster()` | Create a team roster |
+| `update_player_status()` | Update player status (active/bench/injured) |
+| `get_player_game_stats()` | Get per-game statistics for a player |
+
 ## 📁 Project Structure
 
 ```
@@ -126,14 +203,20 @@ baselom/
 │  ├─ models.rs
 │  ├─ engine.rs
 │  ├─ validators.rs
-│  └─ errors.rs
+│  ├─ errors.rs
+│  ├─ statistics.rs        # (planned)
+│  ├─ roster.rs            # (planned)
+│  └─ archive.rs           # (planned)
 ├─ baselom_core/           # Python package
 │  ├─ __init__.py
 │  ├─ models.py
 │  ├─ engine.py
 │  ├─ serializer.py
 │  ├─ exceptions.py
-│  └─ validators.py
+│  ├─ validators.py
+│  ├─ statistics.py        # (planned)
+│  ├─ roster.py            # (planned)
+│  └─ archive.py           # (planned)
 ├─ tests/
 ├─ docs/                   # Specifications
 ├─ Cargo.toml
@@ -177,4 +260,4 @@ MIT License - see [LICENSE](./LICENSE) for details.
 
 ---
 
-*Baselom Core is designed to be the foundation for baseball simulation systems, providing a reliable, tested, and high-performance rules engine*.
+*Baselom Core is designed to be the foundation for baseball simulation systems and real-world game management, providing a reliable, tested, and high-performance rules engine*.
