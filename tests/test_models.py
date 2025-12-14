@@ -1,5 +1,7 @@
 """Tests for the data models."""
 
+import pytest
+
 from baselom_core.models import GameRules, GameState, Score
 
 
@@ -55,7 +57,5 @@ class TestGameState:
 
     def test_state_is_immutable(self, initial_state: GameState) -> None:
         """Test that game state is frozen (immutable)."""
-        import pytest
-
         with pytest.raises(AttributeError):
             initial_state.outs = 1  # type: ignore[misc]

@@ -461,7 +461,7 @@ Special rules for pitchers:
 
 ### Overview
 
-**Earned runs** are a pitching statistic that excludes runs scored due to defensive errors. The calculation can vary by rule set (MLB vs Little League vs other variations), which is why Baselom stores `rules_version` with each game state.
+**Earned runs** are a pitching statistic that excludes runs scored due to defensive errors. The calculation can vary by rule set (professional-style vs youth vs other variations), which is why Baselom stores `rules_version` with each game state.
 
 ### Essential Information Required for Earned Run Calculation
 
@@ -476,7 +476,7 @@ To enable consistent earned run calculation during replay, events MUST include:
 
 ### Earned Run Rules
 
-**MLB Standard Rules:**
+**Professional-style rules:**
 
 1. **Earned if**: Run scores via hit, walk, HBP, sacrifice, stolen base, balk, wild pitch, passed ball
 2. **Unearned if**: Run would not have scored without an error
@@ -529,9 +529,9 @@ Different rule sets may interpret earned runs differently:
 
 | Rule Set | Key Differences |
 |----------|-----------------|
-| **MLB** | Standard reconstruction rule; passed balls count as earned |
-| **Little League** | May be more lenient on error attribution |
-| **NCAA** | Similar to MLB but with specific catcher's interference rules |
+| **Professional-style** | Standard reconstruction rule; passed balls count as earned |
+| **Youth recreational** | May be more lenient on error attribution |
+| **Collegiate-style** | Similar to professional but with specific catcher's interference rules |
 | **Custom Leagues** | May simplify to "error in same inning = unearned" |
 
 **Why Store rules_version:**
@@ -552,7 +552,7 @@ pitching_stats = calculate_pitching_stats(state, rules)
 GameState(
     inning=5,
     # ...
-    rules_version="mlb-2024.1.0",  # Specifies MLB 2024 rules, version 1.0
+    rules_version="pro-2024.1.0",  # Specifies a professional-style 2024 ruleset, version 1.0
     # ...
 )
 ```

@@ -46,7 +46,7 @@ depends = ["test-rust", "test-python", "test-wasm"]
 # Linting - All languages
 [tasks.lint-rust]
 description = "Lint Rust code"
-run = "cargo fmt --check && cargo clippy -- -D warnings"
+run = "cargo fmt --check && cargo clippy --all-targets --all-features -- -D warnings"
 
 [tasks.lint-python]
 description = "Lint Python code"

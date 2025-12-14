@@ -1,7 +1,8 @@
 """Core data models for the baseball game state."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -23,8 +24,8 @@ class GameRules:
     """
 
     designated_hitter: bool = False
-    max_innings: Optional[int] = 9
-    extra_innings_tiebreaker: Optional[str] = None
+    max_innings: int | None = 9
+    extra_innings_tiebreaker: str | None = None
 
 
 @dataclass(frozen=True)
@@ -44,7 +45,7 @@ class GameState:
     inning: int
     top: bool
     outs: int
-    bases: tuple[Optional[str], Optional[str], Optional[str]]
+    bases: tuple[str | None, str | None, str | None]
     score: Score
-    current_batter_id: Optional[str] = None
-    current_pitcher_id: Optional[str] = None
+    current_batter_id: str | None = None
+    current_pitcher_id: str | None = None

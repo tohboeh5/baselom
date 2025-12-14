@@ -747,7 +747,7 @@ For backward compatibility, events may also be in **flat format** (without expli
 **Risks:**
 
 1. **Rule Interpretation Variance**: Different rule versions may compute derived values differently
-   - Example: Earned run rules differ between MLB and Little League
+   - Example: Earned run rules differ between professional-style and youth-focused rule sets
    - Example: Error vs hit scoring judgment affects multiple statistics
    
 2. **Replay Consistency**: Replaying old events with new engine versions may produce different statistics
@@ -805,8 +805,8 @@ Note: `rbi` is NOT stored. If a runner scores on this out, it's captured in `run
 **Rule Version Documentation:**
 
 The `rules_version` should follow semantic versioning and include league context:
-- `"mlb-2024.1.0"` - MLB rules, 2024 season, version 1.0
-- `"little-league-2024.1.0"` - Little League rules, 2024
+- `"pro-2024.1.0"` - Professional-style rules, 2024 season, version 1.0
+- `"youth-2024.1.0"` - Youth recreational rules, 2024
 - `"custom-house-rules-1.0.0"` - Custom rule set
 
 This enables correct replay interpretation when rules differ between leagues or change over time. The version should be incremented when rule interpretations change (e.g., earned run calculation methods, error attribution rules).
@@ -1093,7 +1093,7 @@ Baselom uses **three distinct version identifiers**:
 | Version Type | Location | Purpose | Included in Hash |
 |--------------|----------|---------|------------------|
 | `schema_version` | Event envelope | Payload schema version for this event type | **Yes** |
-| `rules_version` | GameState | Baseball rules version (e.g., "2024 MLB rules") | No |
+| `rules_version` | GameState | Baseball rules version (e.g., "2024 professional ruleset") | No |
 | `baselom_version` | MultiGameArchive | Library version that created the archive | No |
 
 ### Event Schema Version

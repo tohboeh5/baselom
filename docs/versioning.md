@@ -12,7 +12,7 @@ Baselom uses **three distinct version identifiers**:
 |---------|----------|---------|
 | **Library Version** (SemVer) | Package metadata, `__version__` | Baselom Core release version |
 | **Event Schema Version** | Event envelope `schema_version` | Version of event payload structure |
-| **Rules Version** | `GameState.rules_version` | Baseball rules variant (e.g., "2024 MLB rules") |
+| **Rules Version** | `GameState.rules_version` | Baseball rules variant (e.g., "2024 professional ruleset") |
 
 See [Serialization - Version Types](./serialization.md#version-types) for detailed explanation.
 
