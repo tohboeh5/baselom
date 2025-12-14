@@ -1,6 +1,6 @@
 """FSM engine logic for state transitions."""
 
-from baselom_core.models import GameRules, GameState, Score
+from baselom_core.models import GameRules, GameState, Score, normalize_lineups
 
 
 def initial_game_state(
@@ -25,7 +25,7 @@ def initial_game_state(
         outs=0,
         bases=(None, None, None),
         score=Score(home=0, away=0),
-        lineups={"home": tuple(home_lineup), "away": tuple(away_lineup)},
+        lineups=normalize_lineups({"home": tuple(home_lineup), "away": tuple(away_lineup)}),
     )
 
 

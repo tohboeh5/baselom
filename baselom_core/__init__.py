@@ -12,7 +12,13 @@ from baselom_core.exceptions import (
     StateError,
     ValidationError,
 )
-from baselom_core.models import GameRules, GameState, Score, ValidationResult
+from baselom_core.models import (
+    GameRules,
+    GameState,
+    Score,
+    ValidationResult,
+    normalize_lineups,
+)
 from baselom_core.validators import validate_state
 
 __all__ = [
@@ -27,6 +33,7 @@ __all__ = [
     "ValidationResult",
     "apply_pitch",
     "initial_game_state",
+    "normalize_lineups",
     "validate_state",
 ]
 

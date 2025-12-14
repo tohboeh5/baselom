@@ -1,7 +1,5 @@
 """State validation rules."""
 
-from collections import Counter
-
 from baselom_core.models import GameState, ValidationResult
 
 MAX_OUTS = 2
@@ -39,9 +37,14 @@ def validate_state(state: GameState) -> ValidationResult:
                 f"lineup must contain exactly {LINEUP_SIZE} players, got {count} for {team}",
             )
 
-        duplicates = sorted(
-            player for player, count in Counter(lineup).items() if count > 1
-        )
+        seen: set[str] = set()
+        duplicates: set[str] = set()
+        for player in lineup:
+            if player in seen:
+                duplicates.add(player)
+            else:
+                seen.add(player)
+        duplicates = sorted(duplicates)
         errors.extend(
             f"duplicate player '{duplicate}' in {team} lineup" for duplicate in duplicates
         )

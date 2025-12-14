@@ -1,6 +1,6 @@
 """Tests for validators."""
 
-from baselom_core.models import GameState, Score
+from baselom_core.models import GameState, Score, normalize_lineups
 from baselom_core.validators import validate_state
 
 
@@ -22,7 +22,7 @@ class TestValidateState:
             outs=-1,
             bases=(None, None, None),
             score=Score(),
-            lineups=valid_lineups,
+            lineups=normalize_lineups(valid_lineups),
         )
         result = validate_state(state)
         assert result.is_valid is False
@@ -36,7 +36,7 @@ class TestValidateState:
             outs=3,
             bases=(None, None, None),
             score=Score(),
-            lineups=valid_lineups,
+            lineups=normalize_lineups(valid_lineups),
         )
         result = validate_state(state)
         assert result.is_valid is False
@@ -50,7 +50,7 @@ class TestValidateState:
             outs=0,
             bases=(None, None, None),
             score=Score(),
-            lineups=valid_lineups,
+            lineups=normalize_lineups(valid_lineups),
         )
         result = validate_state(state)
         assert result.is_valid is False
@@ -64,7 +64,7 @@ class TestValidateState:
             outs=0,
             bases=(None, None, None),
             score=Score(home=-1, away=0),
-            lineups=valid_lineups,
+            lineups=normalize_lineups(valid_lineups),
         )
         result = validate_state(state)
         assert result.is_valid is False
@@ -82,7 +82,7 @@ class TestValidateState:
             outs=0,
             bases=(None, None, None),
             score=Score(),
-            lineups=bad_lineups,
+            lineups=normalize_lineups(bad_lineups),
         )
         result = validate_state(state)
         assert result.is_valid is False
@@ -110,7 +110,7 @@ class TestValidateState:
             outs=0,
             bases=(None, None, None),
             score=Score(),
-            lineups=bad_lineups,
+            lineups=normalize_lineups(bad_lineups),
         )
         result = validate_state(state)
         assert result.is_valid is False

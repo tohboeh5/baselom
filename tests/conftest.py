@@ -2,7 +2,7 @@
 
 import pytest
 
-from baselom_core.models import GameRules, GameState, Score
+from baselom_core.models import GameRules, GameState, Score, normalize_lineups
 
 HOME_LINEUP = tuple(f"h{i}" for i in range(1, 10))
 AWAY_LINEUP = tuple(f"a{i}" for i in range(1, 10))
@@ -29,5 +29,5 @@ def initial_state(valid_lineups: dict[str, tuple[str, ...]]) -> GameState:
         outs=0,
         bases=(None, None, None),
         score=Score(home=0, away=0),
-        lineups=valid_lineups,
+        lineups=normalize_lineups(valid_lineups),
     )

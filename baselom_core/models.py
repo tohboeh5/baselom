@@ -10,9 +10,19 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 
+def normalize_lineups(lineups: Mapping[str, tuple[str, ...]]) -> MappingProxyType:
+    """Return an immutable copy of the provided lineups."""
+    return MappingProxyType({team: tuple(players) for team, players in lineups.items()})
+
+
+LINEUPS_IMMUTABLE_ERROR = "lineups must be an immutable mapping (MappingProxyType)"
+LINEUPS_TUPLE_ERROR = "lineups must contain tuples for each team"
+_DEFAULT_LINEUPS = normalize_lineups({"home": (), "away": ()})
+
+
 def _default_lineups() -> MappingProxyType:
     """Provide empty immutable lineups for initialization."""
-    return MappingProxyType({"home": (), "away": ()})
+    return _DEFAULT_LINEUPS
 
 
 @dataclass(frozen=True)
@@ -65,17 +75,11 @@ class GameState:
     )
 
     def __post_init__(self) -> None:
-        """Ensure lineups are immutable tuples wrapped in MappingProxyType."""
-        if isinstance(self.lineups, MappingProxyType) and all(
-            isinstance(players, tuple) for players in self.lineups.values()
-        ):
-            return
-        # Use object.__setattr__ to perform one-time normalization while keeping the
-        # dataclass frozen for callers.
-        normalized_lineups = {
-            team: tuple(players) for team, players in self.lineups.items()
-        }
-        object.__setattr__(self, "lineups", MappingProxyType(normalized_lineups))
+        """Validate lineups immutability requirements."""
+        if not isinstance(self.lineups, MappingProxyType):
+            raise TypeError(LINEUPS_IMMUTABLE_ERROR)
+        if not all(isinstance(players, tuple) for players in self.lineups.values()):
+            raise TypeError(LINEUPS_TUPLE_ERROR)
 
 
 @dataclass(frozen=True)
