@@ -203,16 +203,16 @@ Every state transition produces an event that can be:
 
 ### Configurable Rules
 
-Rules can be customized for different baseball variants:
+Rules can be customized for different baseball variants. The examples use neutral names to avoid implying any official affiliation:
 
 ```python
-# MLB Rules (2024)
+# Professional-style rules (2024 example)
 rules = GameRules(
     designated_hitter=True,
     extra_innings_tiebreaker='runner_on_second'
 )
 
-# Little League Rules
+# Youth recreational rules
 rules = GameRules(
     max_innings=6,
     mercy_rule_enabled=True,

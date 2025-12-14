@@ -658,7 +658,7 @@ def default_rules():
     return GameRules()
 
 @pytest.fixture
-def mlb_rules():
+def pro_rules():
     return GameRules(
         designated_hitter=True,
         extra_innings_tiebreaker='runner_on_second'
@@ -824,8 +824,8 @@ tests/
 │   │   ├── single.json
 │   │   └── home_run.json
 │   └── rules/
-│       ├── mlb_rules.json
-│       └── little_league_rules.json
+│       ├── pro_rules.json
+│       └── youth_rules.json
 └── test_*.py
 ```
 

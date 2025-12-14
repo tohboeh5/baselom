@@ -287,17 +287,17 @@ class GameRules:
 #### Rule Presets
 
 ```python
-# MLB Rules (2024)
-MLB_RULES = GameRules(
-    designated_hitter=True,  # Universal DH since 2022
+# Professional rules (2024 example)
+PRO_RULES = GameRules(
+    designated_hitter=True,  # Universal DH in many professional leagues
     max_innings=9,
-    extra_innings_tiebreaker='runner_on_second',  # Since 2020
+    extra_innings_tiebreaker='runner_on_second',
     max_extra_innings=None,
     mercy_rule_enabled=False
 )
 
-# Little League Rules
-LITTLE_LEAGUE_RULES = GameRules(
+# Youth recreational rules
+YOUTH_RULES = GameRules(
     designated_hitter=False,
     max_innings=6,
     extra_innings_tiebreaker=None,

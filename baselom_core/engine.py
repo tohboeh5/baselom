@@ -32,7 +32,7 @@ def apply_pitch(
     state: GameState,
     pitch_result: str,
     rules: GameRules,
-) -> tuple[GameState, dict]:
+) -> tuple[GameState, dict[str, object]]:
     """Apply a pitch result to the game state.
 
     Args:
@@ -48,5 +48,5 @@ def apply_pitch(
         StateError: If game has ended.
     """
     _ = state, pitch_result, rules  # Will be used in full implementation
-    # TODO: Implement full pitch processing
-    raise NotImplementedError("apply_pitch not yet implemented")
+    message = "apply_pitch not yet implemented"
+    raise NotImplementedError(message)
