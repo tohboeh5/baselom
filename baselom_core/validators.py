@@ -1,27 +1,57 @@
 """State validation rules."""
 
-from baselom_core.exceptions import ValidationError
-from baselom_core.models import GameState
+from baselom_core.models import GameState, ValidationResult
 
 MAX_OUTS = 2
 MIN_INNING = 1
-OUTS_RANGE_MESSAGE = "Outs must be between 0 and 2"
-MIN_INNING_MESSAGE = "Inning must be at least 1"
+LINEUP_SIZE = 9
 
 
-def validate_state(state: GameState) -> None:
+def validate_state(state: GameState) -> ValidationResult:
     """Validate that a game state is consistent.
 
     Args:
         state: The game state to validate.
 
-    Raises:
-        ValidationError: If the state is invalid.
+    Returns:
+        ValidationResult: Validation result containing errors and warnings.
     """
-    # Validate outs
-    if not 0 <= state.outs <= MAX_OUTS:
-        raise ValidationError(OUTS_RANGE_MESSAGE)
+    errors: list[str] = []
+    warnings: list[str] = []
 
-    # Validate inning
+    if state.outs < 0 or state.outs > MAX_OUTS:
+        errors.append(f"outs must be in range [0, {MAX_OUTS}], got {state.outs}")
+
     if state.inning < MIN_INNING:
-        raise ValidationError(MIN_INNING_MESSAGE)
+        errors.append(f"inning must be >= {MIN_INNING}, got {state.inning}")
+
+    if state.score.home < 0 or state.score.away < 0:
+        scores = {"home": state.score.home, "away": state.score.away}
+        errors.append(f"scores must be non-negative, got {scores}")
+
+    for team in ("home", "away"):
+        lineup = state.lineups.get(team, ())
+        count = len(lineup)
+        if count != LINEUP_SIZE:
+            errors.append(
+                f"lineup must contain exactly {LINEUP_SIZE} players, got {count} for {team}",
+            )
+
+        seen: set[str] = set()
+        duplicates: set[str] = set()
+        for player in lineup:
+            if player in seen:
+                duplicates.add(player)
+            else:
+                seen.add(player)
+
+        errors.extend(
+            f"duplicate player '{duplicate}' in {team} lineup"
+            for duplicate in sorted(duplicates)
+        )
+
+    return ValidationResult(
+        is_valid=not errors,
+        errors=tuple(errors),
+        warnings=tuple(warnings),
+    )

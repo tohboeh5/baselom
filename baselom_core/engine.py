@@ -25,6 +25,7 @@ def initial_game_state(
         outs=0,
         bases=(None, None, None),
         score=Score(home=0, away=0),
+        lineups={"home": tuple(home_lineup), "away": tuple(away_lineup)},
     )
 
 

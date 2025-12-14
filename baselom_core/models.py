@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from types import MappingProxyType
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 
 @dataclass(frozen=True)
@@ -49,3 +54,22 @@ class GameState:
     score: Score
     current_batter_id: str | None = None
     current_pitcher_id: str | None = None
+    lineups: Mapping[str, tuple[str, ...]] = field(
+        default_factory=lambda: MappingProxyType({"home": (), "away": ()}),
+    )
+
+    def __post_init__(self) -> None:
+        """Ensure lineups are immutable tuples wrapped in MappingProxyType."""
+        normalized_lineups = {
+            team: tuple(players) for team, players in self.lineups.items()
+        }
+        object.__setattr__(self, "lineups", MappingProxyType(normalized_lineups))
+
+
+@dataclass(frozen=True)
+class ValidationResult:
+    """Result of state validation."""
+
+    is_valid: bool
+    errors: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
