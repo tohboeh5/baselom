@@ -2,7 +2,27 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from types import MappingProxyType
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+
+def normalize_lineups(lineups: Mapping[str, tuple[str, ...]]) -> MappingProxyType:
+    """Return an immutable copy of the provided lineups."""
+    return MappingProxyType({team: tuple(players) for team, players in lineups.items()})
+
+
+LINEUPS_IMMUTABLE_ERROR = "lineups must be an immutable mapping (MappingProxyType)"
+LINEUPS_TUPLE_ERROR = "lineups must contain tuples for each team"
+_DEFAULT_LINEUPS = normalize_lineups({"home": (), "away": ()})
+
+
+def _default_lineups() -> MappingProxyType:
+    """Provide empty immutable lineups for initialization."""
+    return _DEFAULT_LINEUPS
 
 
 @dataclass(frozen=True)
@@ -40,6 +60,7 @@ class GameState:
         score: Current score.
         current_batter_id: ID of current batter.
         current_pitcher_id: ID of current pitcher.
+        lineups: Immutable batting orders for home and away teams.
     """
 
     inning: int
@@ -49,3 +70,22 @@ class GameState:
     score: Score
     current_batter_id: str | None = None
     current_pitcher_id: str | None = None
+    lineups: Mapping[str, tuple[str, ...]] = field(
+        default_factory=_default_lineups,
+    )
+
+    def __post_init__(self) -> None:
+        """Validate lineups immutability requirements."""
+        if not isinstance(self.lineups, MappingProxyType):
+            raise TypeError(LINEUPS_IMMUTABLE_ERROR)
+        if not all(isinstance(players, tuple) for players in self.lineups.values()):
+            raise TypeError(LINEUPS_TUPLE_ERROR)
+
+
+@dataclass(frozen=True)
+class ValidationResult:
+    """Result of state validation."""
+
+    is_valid: bool
+    errors: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
