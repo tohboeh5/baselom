@@ -1,8 +1,8 @@
 # Baselom Core
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Rust](https://img.shields.io/badge/rust-1.83+-orange.svg)](https://www.rust-lang.org/)
 
 **Lightweight, pure game-state engine for baseball.**
 
@@ -78,11 +78,11 @@ See [Serialization Documentation](./docs/serialization.md) for complete details 
 # From PyPI (when published)
 pip install baselom-core
 
-# From source
+# From source (recommended: use mise)
 git clone https://github.com/tohboeh5/baselom.git
 cd baselom
-pip install maturin
-maturin develop
+mise install && mise run install
+mise run build
 ```
 
 ## 🚀 Quick Start
@@ -202,9 +202,11 @@ baselom/
 │  ├─ lib.rs
 │  ├─ models.rs
 │  ├─ engine.rs
-│  ├─ statistics.rs
-│  ├─ roster.rs
-│  └─ archive.rs
+│  ├─ validators.rs
+│  ├─ errors.rs
+│  ├─ statistics.rs        # (planned)
+│  ├─ roster.rs            # (planned)
+│  └─ archive.rs           # (planned)
 ├─ baselom_core/           # Python package
 │  ├─ __init__.py
 │  ├─ models.py
@@ -212,13 +214,14 @@ baselom/
 │  ├─ serializer.py
 │  ├─ exceptions.py
 │  ├─ validators.py
-│  ├─ statistics.py
-│  ├─ roster.py
-│  └─ archive.py
+│  ├─ statistics.py        # (planned)
+│  ├─ roster.py            # (planned)
+│  └─ archive.py           # (planned)
 ├─ tests/
 ├─ docs/                   # Specifications
 ├─ Cargo.toml
 ├─ pyproject.toml
+├─ mise.toml               # Development tasks
 └─ README.md
 ```
 
@@ -238,13 +241,18 @@ Full specifications available in [`docs/`](./docs/):
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read the development guide in `docs/development.md` before submitting PRs.
+Contributions are welcome! See the [Development Guide](./docs/development.md) for:
+- Quick setup with mise
+- WASM-compatible development rules
+- Available commands (`mise run format`, `lint`, `test`)
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes with tests
-4. Run `pytest` and `cargo test`
-5. Submit a pull request
+```bash
+# Quick start
+git clone https://github.com/tohboeh5/baselom.git
+cd baselom
+mise install && mise run install
+mise run test  # Run all tests
+```
 
 ## 📄 License
 

@@ -1,0 +1,79 @@
+min_version = "2025.11.3"
+
+[env]
+_.python.venv = { path = ".venv" }
+
+[tools]
+python = "3.12"
+uv = "0.9.8"
+rust = "1.83.0"
+
+[tasks.install]
+run = "uv sync && (rustup component add clippy rustfmt || true) && (rustup target add wasm32-unknown-unknown || true)"
+
+# Python build tasks (v0.1.0)
+[tasks.build]
+run = "uv run maturin develop --features python"
+
+[tasks.build-release]
+run = "uv run maturin develop --release --features python"
+
+# WASM build tasks (v0.2.0+)
+[tasks.build-wasm]
+run = "cargo build --target wasm32-unknown-unknown --features wasm --release"
+
+[tasks.build-wasm-dev]
+run = "cargo build --target wasm32-unknown-unknown --features wasm"
+
+# Testing - Individual test tasks
+[tasks.test-rust]
+description = "Run Rust unit tests"
+run = "cargo test"
+
+[tasks.test-python]
+description = "Run Python tests"
+run = "uv run pytest"
+
+[tasks.test-wasm]
+description = "Build and check WASM target compiles"
+run = "cargo check --features wasm --target wasm32-unknown-unknown"
+
+# Testing - Combined task (runs all tests including WASM)
+[tasks.test]
+description = "Run all tests (Rust + Python + WASM check)"
+depends = ["test-rust", "test-python", "test-wasm"]
+
+# Linting - All languages
+[tasks.lint-rust]
+description = "Lint Rust code"
+run = "cargo fmt --check && cargo clippy -- -D warnings"
+
+[tasks.lint-python]
+description = "Lint Python code"
+run = "uv run ruff check ."
+
+[tasks.lint]
+description = "Lint all languages (Rust + Python)"
+depends = ["lint-rust", "lint-python"]
+
+# Formatting - All languages
+[tasks.format-rust]
+description = "Format Rust code"
+run = "cargo fmt"
+
+[tasks.format-python]
+description = "Format Python code"
+run = "uv run ruff format ."
+
+[tasks.format]
+description = "Format all languages (Rust + Python)"
+depends = ["format-rust", "format-python"]
+
+[tasks.typecheck]
+description = "Type check Python code"
+run = "uv run mypy baselom_core"
+
+# Check that code compiles for all targets
+[tasks.check-all]
+description = "Check all targets compile (std, python, wasm)"
+run = "cargo check && cargo check --features python && cargo check --features wasm --target wasm32-unknown-unknown"

@@ -1,0 +1,34 @@
+{
+	"name": "mise",
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+	"features": {
+		"ghcr.io/devcontainers-extra/features/mise:1": {},
+		"ghcr.io/devcontainers-extra/features/pre-commit:2": {}
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python",
+				"charliermarsh.ruff",
+				"astral-sh.ty",
+				"hverlin.mise-vscode",
+				"tombi-toml.tombi",
+				"rust-lang.rust-analyzer",
+				"serayuzgur.crates",
+				"GitHub.vscode-pull-request-github",
+				"github.vscode-github-actions"
+			]
+		}
+	},
+	"workspaceFolder": "/workspace",
+	"workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+	"mounts": [
+		"source=baselom_venv,target=/workspace/.venv,type=volume",
+		"source=baselom_cargo,target=/home/vscode/.cargo,type=volume",
+		"source=baselom_target,target=/workspace/target,type=volume"
+	],
+	"remoteUser": "vscode",
+	"containerEnv": {},
+	"remoteEnv": { "MISE_EXPERIMENTAL": "1" },
+	"postAttachCommand": "eval \"$(mise activate bash --shims)\" >> ~/.bashrc && sudo chown -R vscode:vscode /workspace/.venv /workspace/target /home/vscode/.cargo && mise trust -- --non-interactive && mise install --yes && mise run install && pre-commit install"
+}

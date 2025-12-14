@@ -1,0 +1,40 @@
+[package]
+name = "baselom-core"
+version = "0.1.0"
+edition = "2021"
+authors = ["tohboeh5"]
+description = "Lightweight, pure game-state engine for baseball"
+license = "MIT"
+repository = "https://github.com/tohboeh5/baselom"
+keywords = ["baseball", "game-engine", "state-machine"]
+categories = ["game-engines", "simulation"]
+
+[lib]
+name = "baselom_core"
+crate-type = ["cdylib", "rlib"]
+
+# Core dependencies (WASM-compatible)
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+
+# Platform-specific dependencies
+pyo3 = { version = "0.24", features = ["extension-module"], optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+js-sys = { version = "0.3", optional = true }
+
+[dev-dependencies]
+criterion = "0.5"
+
+[profile.release]
+lto = true
+opt-level = 3
+
+# Feature flags for conditional compilation
+# See: docs/architecture.md "Feature Flags" section
+[features]
+default = ["std"]
+std = []                                  # Enable standard library (native builds)
+python = ["pyo3"]                         # Enable Python bindings (v0.1.0)
+wasm = ["wasm-bindgen", "js-sys"]         # Enable WASM bindings (v0.2.0+)
