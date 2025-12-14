@@ -82,7 +82,124 @@ use alloc::{string::String, vec::Vec};
 use serde_json;
 ```
 
-**Note**: Full `serde_json` support requires the `std` feature. For `no_std` environments (e.g., embedded WASM), binary serialization via `postcard` or `bincode` (with `no_std` feature) is available as an alternative.
+**Important Note on `no_std` and JSON Serialization**:
+
+`serde_json` requires the standard library (`std`) because it:
+- Uses `std::io::Write` for serialization
+- Depends on `std::error::Error` for error handling
+- Uses `std::collections::HashMap` for JSON objects
+
+**Serialization Strategy by Environment**:
+
+| Environment | Serialization Format | Feature Flags | Notes |
+|-------------|---------------------|---------------|-------|
+| **Native (Python/CLI)** | JSON (`serde_json`) | `--features std` | Human-readable, interoperable |
+| **WASM (Browser)** | JSON (`serde_json`) | `--features std` | Standard library available in WASM |
+| **Embedded / no_std** | Binary (`postcard`) | `--no-default-features --features alloc` | Compact, no_std compatible |
+| **Cross-platform Archive** | JSON | `--features std` | For data exchange between platforms |
+
+**Cross-Platform Serialization Compatibility**:
+
+The requirement "Rust and Python produce identical serialized output" applies ONLY to JSON serialization with `std` feature enabled. For `no_std` environments:
+
+1. **Use binary formats** (`postcard`, `bincode`) for internal storage
+2. **Convert to JSON** at boundary when interoperating with Python/external systems
+3. **Maintain separate serialization paths**:
+   - Internal: Binary format (no_std safe)
+   - External: JSON format (requires std feature)
+
+**Example: no_std WASM Build with External JSON Support**
+
+```rust
+// Internal state serialization (no_std)
+#[cfg(not(feature = "std"))]
+fn serialize_state_internal(state: &GameState) -> Result<Vec<u8>, Error> {
+    postcard::to_allocvec(state).map_err(|e| Error::Serialization(e))
+}
+
+// External JSON serialization (std required)
+#[cfg(feature = "std")]
+fn serialize_state_json(state: &GameState) -> Result<String, Error> {
+    serde_json::to_string(state).map_err(|e| Error::Serialization(e))
+}
+
+// WASM binding (can use either depending on build features)
+#[wasm_bindgen]
+pub fn export_state_json(state: &GameState) -> Result<String, JsValue> {
+    #[cfg(feature = "std")]
+    {
+        serialize_state_json(state).map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+    
+    #[cfg(not(feature = "std"))]
+    {
+        // For no_std WASM, must convert via binary format
+        let binary = serialize_state_internal(state)?;
+        // Convert to hex string or base64 for transmission
+        Ok(hex::encode(binary))
+    }
+}
+```
+
+**Recommended Build Configurations**:
+
+```toml
+# Cargo.toml
+[features]
+default = ["std"]
+std = ["serde_json"]           # Enable JSON + std library
+alloc = []                     # Enable heap allocation only
+python = ["pyo3", "std"]       # Python bindings (requires std)
+wasm = ["wasm-bindgen"]        # WASM bindings (can work with or without std)
+
+[dependencies]
+serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
+serde_json = { version = "1.0", optional = true }  # Only with std feature
+postcard = { version = "1.0", default-features = false, features = ["alloc"] }
+```
+
+```bash
+# Build examples
+
+# Python bindings (requires std for JSON)
+maturin build --release --features python,std
+
+# WASM with std (recommended for browser use)
+wasm-pack build --target web --features wasm,std
+
+# WASM without std (embedded/minimal)
+cargo build --target wasm32-unknown-unknown --no-default-features --features wasm,alloc
+
+# Native CLI with JSON
+cargo build --release --features std
+```
+
+**Testing Cross-Platform Serialization**:
+
+```rust
+#[cfg(all(test, feature = "std"))]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_rust_python_json_compatibility() {
+        let state = create_test_state();
+        
+        // Serialize in Rust
+        let rust_json = serde_json::to_string(&state).unwrap();
+        
+        // Parse back
+        let parsed: GameState = serde_json::from_str(&rust_json).unwrap();
+        
+        // Verify canonical form matches
+        let canonical1 = canonical_json_bytes(&state);
+        let canonical2 = canonical_json_bytes(&parsed);
+        assert_eq!(canonical1, canonical2);
+    }
+}
+```
+
+See [Serialization](./serialization.md#cross-platform-serialization) for complete details on JSON canonicalization and cross-platform compatibility.
 
 ### 2. No I/O or System Calls
 
@@ -416,16 +533,121 @@ See [Serialization - Event History Storage Architecture](./serialization.md#even
 - **Type coercion**: Automatic conversion between Rust/Python types
 - **GIL management**: Release GIL during Rust computations
 
-### Benchmarks (Target)
+### Performance Targets and Benchmarking
 
-| Operation | Target Latency |
-|-----------|----------------|
-| `apply_pitch()` | < 100μs |
-| `validate_state()` | < 50μs |
-| State serialization | < 100μs |
-| Full game simulation (9 innings, ~300 pitches) | < 50ms |
+**Important**: Performance targets are **environment-specific** and depend on:
+- CPU architecture and clock speed
+- Build configuration (Release vs Debug)
+- Execution context (pure Rust vs PyO3 bindings)
+- System load and resource availability
 
-*Note: These are initial targets. Actual benchmarks will be measured and documented after implementation.*
+#### Target Performance Goals (Reference Environment)
+
+**Reference Environment Specification:**
+- CPU: Intel Xeon (GitHub Actions standard runner) or equivalent 2-4 core CPU @ 2.0+ GHz
+- Build: `--release` (optimizations enabled)
+- Context: Direct Rust calls (not Python bindings)
+- Conditions: Single-threaded, isolated execution
+
+Note: GitHub Actions runners use varying Intel/AMD CPUs. Benchmarks should specify actual CPU model used.
+
+| Operation | Target (Rust Core) | Target (Python via PyO3) | Notes |
+|-----------|-------------------|-------------------------|-------|
+| `apply_pitch()` | < 100μs | < 300μs | PyO3 overhead adds ~2-3x latency |
+| `validate_state()` | < 50μs | < 150μs | Includes full invariant checking |
+| State serialization (JSON) | < 100μs | < 200μs | Canonical JSON generation |
+| Full game simulation (9 innings, ~300 pitches) | < 50ms | < 200ms | End-to-end including state transitions |
+
+**Debug Build Performance**: Expect 5-10x slower performance in Debug builds. Always use `--release` for benchmarking.
+
+**WASM Performance** (Future, v0.2.0+): WASM builds may be 2-3x slower than native due to:
+- Limited CPU instruction set
+- Memory access patterns
+- Browser JavaScript interop overhead
+
+#### Benchmark Execution
+
+Benchmarks MUST document their execution environment:
+
+```bash
+# Rust benchmarks
+cargo bench --features bench -- --save-baseline reference
+
+# Python benchmarks
+pytest tests/test_performance.py --benchmark-only --benchmark-json=benchmark.json
+
+# Record environment
+echo "CPU: $(lscpu | grep 'Model name')" >> benchmark_env.txt
+echo "Rust: $(rustc --version)" >> benchmark_env.txt
+echo "Build: release" >> benchmark_env.txt
+```
+
+#### CI Benchmark Configuration
+
+GitHub Actions benchmark job specification:
+
+```yaml
+benchmark:
+  runs-on: ubuntu-latest  # Standard runner (2-core CPU)
+  steps:
+    - name: Run benchmarks
+      run: |
+        cargo bench --release
+        pytest --benchmark-only
+    
+    - name: Record environment
+      run: |
+        echo "Runner: ${{ runner.os }} - ${{ runner.arch }}"
+        lscpu > ci_cpu_info.txt
+        cat /proc/cpuinfo >> ci_cpu_info.txt
+```
+
+#### Performance Regression Detection
+
+Benchmarks should be monitored for regressions:
+- **Warning threshold**: 20% slower than baseline
+- **Failure threshold**: 50% slower than baseline
+- **Baseline update**: When intentional changes affect performance
+
+#### Optimization Priority
+
+Performance optimization should focus on:
+1. **Hot path operations**: `apply_pitch()`, state transitions
+2. **Serialization**: Canonical JSON generation (used frequently)
+3. **Validation**: Only check invariants when necessary
+4. **Memory allocation**: Minimize allocations in core engine
+
+**Non-goals**: 
+- Sub-microsecond latencies (not required for baseball simulation)
+- Extreme optimization at cost of code clarity
+- Platform-specific SIMD optimizations (maintain portability)
+
+#### Performance Testing Documentation
+
+All benchmark results SHOULD include:
+- Hardware specification (CPU model, RAM, storage type)
+- Software environment (OS, Rust version, Python version)
+- Build configuration (release/debug, features enabled)
+- Test conditions (single-threaded, system load)
+- Statistical summary (mean, median, std dev, min, max)
+
+Example benchmark report:
+
+```
+Environment:
+  CPU: Intel Core i7-9750H @ 2.60GHz
+  OS: Ubuntu 22.04
+  Rust: 1.75.0
+  Python: 3.11.5
+  Build: --release
+
+Results (mean of 1000 iterations):
+  apply_pitch()     : 87μs  ± 12μs  [✓ within target]
+  validate_state()  : 43μs  ± 8μs   [✓ within target]
+  Full game (9 inn) : 45ms  ± 7ms   [✓ within target]
+```
+
+*Note: Targets are aspirational for optimized Release builds. Actual performance will be documented as benchmarks are implemented and measured across different environments.*
 
 ## Thread Safety
 

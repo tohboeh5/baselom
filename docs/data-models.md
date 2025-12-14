@@ -1280,6 +1280,128 @@ class SeasonStats:
 
 ---
 
+## Data Model Validation Invariants
+
+All GameState instances must satisfy these invariants. The `validate_state()` function checks these conditions and returns a `ValidationResult`.
+
+### Structural Invariants
+
+| Invariant | Condition | validate_state() Error |
+|-----------|-----------|------------------------|
+| **Valid outs range** | `0 <= outs <= 2` | `ValidationError: "outs must be in range [0, 2], got {value}"` |
+| **Valid balls range** | `0 <= balls <= 3` | `ValidationError: "balls must be in range [0, 3], got {value}"` |
+| **Valid strikes range** | `0 <= strikes <= 2` | `ValidationError: "strikes must be in range [0, 2], got {value}"` |
+| **Valid inning** | `inning >= 1` | `ValidationError: "inning must be >= 1, got {value}"` |
+| **Non-negative scores** | `score['home'] >= 0 and score['away'] >= 0` | `ValidationError: "scores must be non-negative, got {scores}"` |
+| **Valid lineup size** | `len(lineups['home']) == 9 and len(lineups['away']) == 9` | `ValidationError: "lineup must contain exactly 9 players, got {count} for {team}"` |
+| **Valid lineup index** | `0 <= lineup_index[team] <= 8` | `ValidationError: "lineup_index must be in range [0, 8], got {value} for {team}"` |
+| **Bases tuple size** | `len(bases) == 3` | `ValidationError: "bases must be a tuple of 3 elements, got {count}"` |
+
+### Consistency Invariants
+
+| Invariant | Condition | validate_state() Error |
+|-----------|-----------|------------------------|
+| **No duplicate runners** | Each player ID appears at most once in `bases` | `ValidationError: "duplicate runner '{player_id}' found on multiple bases"` |
+| **Lineup uniqueness** | No duplicate player IDs in same lineup | `ValidationError: "duplicate player '{player_id}' in {team} lineup"` |
+| **Current batter in lineup** | `current_batter_id in lineups[batting_team]` (if not None) | `ValidationError: "current batter '{id}' not in {team} lineup"` |
+| **Current pitcher in lineup** | `current_pitcher_id in lineups[fielding_team]` (if not None) | `ValidationError: "current pitcher '{id}' not in {team} lineup"` |
+| **Team consistency** | `batting_team != fielding_team` | `ValidationError: "batting_team and fielding_team cannot be the same"` |
+| **Score monotonicity** | Scores only increase between states | `Warning: "score decreased from {old} to {new} - possible state corruption"` (warning only) |
+| **No player on multiple bases** | Runner IDs unique across bases | `ValidationError: "player '{id}' cannot be on multiple bases simultaneously"` |
+
+### Semantic Invariants
+
+| Invariant | Condition | validate_state() Error |
+|-----------|-----------|------------------------|
+| **Valid game status** | `game_status in ['in_progress', 'final', 'suspended']` | `ValidationError: "invalid game_status '{status}', must be one of: in_progress, final, suspended"` |
+| **Final game invariant** | If `game_status == 'final'`, then `outs == 0` and specific inning/score conditions | `ValidationError: "final game must have valid end conditions"` |
+| **Inning-outs consistency** | If `outs == 3`, should transition to next half-inning | `Warning: "outs == 3 detected - half-inning should have ended"` (warning only) |
+| **Count-outs dependency** | If `outs >= 3`, state is invalid | `ValidationError: "outs cannot be >= 3, got {outs}"` |
+
+### DH-Specific Invariants (when designated_hitter=True)
+
+| Invariant | Condition | validate_state() Error |
+|-----------|-----------|------------------------|
+| **DH in lineup** | If DH rule active, lineup contains DH | `ValidationError: "designated hitter not found in lineup"` |
+| **Pitcher not in batting order** | Pitcher ID not at a batting position (if DH active) | `ValidationError: "pitcher in batting order with DH active"` |
+
+### validate_state() Behavior
+
+```python
+from baselom_core import validate_state, ValidationResult
+
+# Valid state
+result = validate_state(valid_state)
+assert result.is_valid == True
+assert len(result.errors) == 0
+
+# Invalid state - out of range
+bad_state = state_with_outs(5)
+result = validate_state(bad_state)
+assert result.is_valid == False
+assert len(result.errors) > 0
+assert "outs must be in range [0, 2]" in result.errors[0]
+
+# State with warnings
+warning_state = state_with_score_decrease()
+result = validate_state(warning_state)
+assert result.is_valid == True  # Still valid
+assert len(result.warnings) > 0
+assert "score decreased" in result.warnings[0]
+```
+
+### Exception Types
+
+`validate_state()` returns a `ValidationResult` and does NOT raise exceptions. However, other API functions may raise:
+
+| Exception | When Raised | Example |
+|-----------|-------------|---------|
+| `ValidationError` | Invalid input to API function | `initial_game_state(home_lineup=['h1', 'h2'])` raises `ValidationError: "lineup must contain exactly 9 players"` |
+| `StateError` | Invalid state transition attempted | `apply_pitch()` on a state with `game_status='final'` raises `StateError: "cannot apply pitch to finished game"` |
+| `RuleViolation` | Rule constraint violated | Invalid substitution raises `RuleViolation: "player not in roster"` |
+
+### Input Validation at Entry Points
+
+**Critical**: Python's type hints (e.g., `Lineup = Tuple[str, str, ..., str]` with 9 elements) are NOT enforced at runtime. Input validation MUST be performed at API entry points:
+
+```python
+def initial_game_state(
+    home_lineup: Tuple[str, ...],
+    away_lineup: Tuple[str, ...],
+    rules: GameRules
+) -> GameState:
+    """Create initial game state.
+    
+    Args:
+        home_lineup: Tuple of 9 player IDs
+        away_lineup: Tuple of 9 player IDs
+        rules: Game rules configuration
+    
+    Raises:
+        ValidationError: If lineups are not exactly 9 players
+        ValidationError: If lineups contain duplicates
+    
+    Note: Type hints specify tuples but do not enforce size at runtime.
+          Size checking is performed explicitly in the function body.
+    """
+    # Explicit size check required
+    if len(home_lineup) != 9:
+        raise ValidationError(f"home_lineup must contain exactly 9 players, got {len(home_lineup)}")
+    if len(away_lineup) != 9:
+        raise ValidationError(f"away_lineup must contain exactly 9 players, got {len(away_lineup)}")
+    
+    # Duplicate check
+    if len(set(home_lineup)) != 9:
+        raise ValidationError("home_lineup contains duplicate players")
+    if len(set(away_lineup)) != 9:
+        raise ValidationError("away_lineup contains duplicate players")
+    
+    # Proceed with state creation
+    ...
+```
+
+See [API Reference](./api-reference.md) for validation behavior of all public functions.
+
 ## JSON Schema
 
 All models can be serialized to JSON. See [Serialization](./serialization.md) for detailed JSON schemas.

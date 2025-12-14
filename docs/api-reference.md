@@ -27,12 +27,37 @@ def initial_game_state(
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `home_lineup` | `List[str]` | Yes | 9 player IDs for home team batting order |
-| `away_lineup` | `List[str]` | Yes | 9 player IDs for away team batting order |
+| `home_lineup` | `List[str]` or `Tuple[str, ...]` | Yes | Exactly 9 player IDs for home team batting order |
+| `away_lineup` | `List[str]` or `Tuple[str, ...]` | Yes | Exactly 9 player IDs for away team batting order |
 | `rules` | `GameRules` | Yes | Rule configuration |
 | `home_pitcher` | `str` | No | Home team starting pitcher ID |
 | `away_pitcher` | `str` | No | Away team starting pitcher ID |
 | `metadata` | `Dict` | No | Additional game metadata |
+
+**Important Note on Lineup Validation:**
+
+Python type hints (e.g., `List[str]`) do NOT enforce length at runtime. The function performs explicit validation:
+
+```python
+# Type hint specifies list but doesn't enforce size
+def initial_game_state(
+    home_lineup: List[str],  # Type checker allows any length
+    away_lineup: List[str],
+    ...
+) -> GameState:
+    # EXPLICIT size checking required
+    if len(home_lineup) != 9:
+        raise ValidationError(f"home_lineup must contain exactly 9 players, got {len(home_lineup)}")
+    if len(away_lineup) != 9:
+        raise ValidationError(f"away_lineup must contain exactly 9 players, got {len(away_lineup)}")
+    # ... continue
+```
+
+**Why this matters:**
+- Type hints are for static analysis only (mypy, IDEs)
+- Runtime behavior requires explicit checks
+- Both `['p1', 'p2']` and `['p1', ..., 'p9']` pass type checking
+- Only runtime validation catches incorrect sizes
 
 #### Returns
 
@@ -45,10 +70,12 @@ def initial_game_state(
 
 #### Raises
 
-| Exception | Condition |
-|-----------|-----------|
-| `ValidationError` | Invalid lineup (not exactly 9 players) |
-| `ValidationError` | Duplicate player IDs in lineup |
+| Exception | Condition | Error Message Example |
+|-----------|-----------|----------------------|
+| `ValidationError` | Lineup not exactly 9 players | `"home_lineup must contain exactly 9 players, got 8"` |
+| `ValidationError` | Duplicate player IDs in lineup | `"duplicate player 'p1' in home lineup"` |
+| `ValidationError` | Empty player ID in lineup | `"lineup cannot contain empty player IDs"` |
+| `ValidationError` | None/null values in lineup | `"lineup cannot contain None values"` |
 
 #### Example
 
@@ -374,25 +401,60 @@ def validate_state(
 
 #### Validation Checks
 
-| Check | Error Condition |
-|-------|-----------------|
-| Outs range | `outs < 0` or `outs > 2` |
-| Balls range | `balls < 0` or `balls > 3` |
-| Strikes range | `strikes < 0` or `strikes > 2` |
-| Inning validity | `inning < 1` |
-| Score validity | Negative scores |
-| Lineup size | Not exactly 9 players |
-| Duplicate players | Same player on multiple bases |
-| Team consistency | `batting_team` != opposite of `fielding_team` |
+`validate_state()` performs comprehensive validation of all GameState invariants. See [Data Models - Validation Invariants](./data-models.md#data-model-validation-invariants) for the complete list.
+
+**Summary of key checks:**
+
+| Check | Error Condition | Error Message Format |
+|-------|-----------------|---------------------|
+| **Structural** |
+| Outs range | `outs < 0` or `outs > 2` | `"outs must be in range [0, 2], got {value}"` |
+| Balls range | `balls < 0` or `balls > 3` | `"balls must be in range [0, 3], got {value}"` |
+| Strikes range | `strikes < 0` or `strikes > 2` | `"strikes must be in range [0, 2], got {value}"` |
+| Inning validity | `inning < 1` | `"inning must be >= 1, got {value}"` |
+| Bases size | `len(bases) != 3` | `"bases must be a tuple of 3 elements, got {count}"` |
+| **Consistency** |
+| Score validity | `score < 0` | `"scores must be non-negative, got {scores}"` |
+| Lineup size | `len(lineup) != 9` | `"lineup must contain exactly 9 players, got {count} for {team}"` |
+| Duplicate runners | Same player on multiple bases | `"duplicate runner '{player_id}' found on multiple bases"` |
+| Duplicate in lineup | Same player ID appears twice | `"duplicate player '{player_id}' in {team} lineup"` |
+| Team consistency | `batting_team == fielding_team` | `"batting_team and fielding_team cannot be the same"` |
+| **Semantic** |
+| Game status | Invalid status value | `"invalid game_status '{status}', must be one of: in_progress, final, suspended"` |
+| Current batter | Not in lineup | `"current batter '{id}' not in {team} lineup"` |
+| Current pitcher | Not in lineup | `"current pitcher '{id}' not in {team} lineup"` |
+
+**Behavior Notes:**
+
+1. **Returns ValidationResult, does not raise**: `validate_state()` always returns a result object; it never throws exceptions
+2. **Warnings vs Errors**: Some conditions produce warnings (e.g., score decrease) but don't invalidate state
+3. **Rule-dependent checks**: When `rules` parameter provided, performs DH-specific validations
 
 #### Example
 
 ```python
+from baselom_core import validate_state
+
+# Valid state
 result = validate_state(state, rules)
-if not result.is_valid:
-    for error in result.errors:
-        print(f"Validation error: {error}")
+assert result.is_valid == True
+assert len(result.errors) == 0
+
+# Invalid state
+bad_state = state_with_invalid_outs(5)
+result = validate_state(bad_state, rules)
+assert result.is_valid == False
+assert any("outs must be in range [0, 2]" in err for err in result.errors)
+
+# State with warnings
+result = validate_state(state_with_score_decrease())
+assert result.is_valid == True  # Still valid
+assert len(result.warnings) > 0
+for warning in result.warnings:
+    print(f"Warning: {warning}")
 ```
+
+See [Data Models](./data-models.md#data-model-validation-invariants) for complete validation specifications and error message formats.
 
 ---
 
