@@ -65,8 +65,10 @@ fn record_out(state: &GameState) -> GameState {
     if outs >= 3 {
         outs = 0;
         bases = (None, None, None);
-        top = !state.top;
-        if top {
+        if state.top {
+            top = false;
+        } else {
+            top = true;
             inning = state.inning + 1;
         }
     }

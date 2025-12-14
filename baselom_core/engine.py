@@ -136,7 +136,6 @@ def _record_out(state: GameState, event_type: str) -> tuple[GameState, str]:
         bases = (None, None, None)
         if state.top:
             top = False
-            inning = state.inning
         else:
             top = True
             inning = state.inning + 1
