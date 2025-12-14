@@ -12,6 +12,18 @@ pub fn validate_state(state: &GameState) -> Result<(), BaselomError> {
         ));
     }
 
+    if state.balls > 3 {
+        return Err(BaselomError::ValidationError(
+            "Balls must be between 0 and 3".to_string(),
+        ));
+    }
+
+    if state.strikes > 2 {
+        return Err(BaselomError::ValidationError(
+            "Strikes must be between 0 and 2".to_string(),
+        ));
+    }
+
     // Validate inning (u8 type guarantees non-negative, so only check for zero)
     if state.inning == 0 {
         return Err(BaselomError::ValidationError(
@@ -32,6 +44,8 @@ mod tests {
             inning,
             top: true,
             outs,
+            balls: 0,
+            strikes: 0,
             bases: (None, None, None),
             score: Score::default(),
             current_batter_id: None,

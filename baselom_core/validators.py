@@ -3,6 +3,8 @@
 from baselom_core.models import GameState, ValidationResult
 
 MAX_OUTS = 2
+MAX_BALLS = 3
+MAX_STRIKES = 2
 MIN_INNING = 1
 LINEUP_SIZE = 9
 
@@ -21,6 +23,14 @@ def validate_state(state: GameState) -> ValidationResult:
 
     if state.outs < 0 or state.outs > MAX_OUTS:
         errors.append(f"outs must be in range [0, {MAX_OUTS}], got {state.outs}")
+
+    if state.balls < 0 or state.balls > MAX_BALLS:
+        errors.append(f"balls must be in range [0, {MAX_BALLS}], got {state.balls}")
+
+    if state.strikes < 0 or state.strikes > MAX_STRIKES:
+        errors.append(
+            f"strikes must be in range [0, {MAX_STRIKES}], got {state.strikes}",
+        )
 
     if state.inning < MIN_INNING:
         errors.append(f"inning must be >= {MIN_INNING}, got {state.inning}")
@@ -48,6 +58,16 @@ def validate_state(state: GameState) -> ValidationResult:
         errors.extend(
             f"duplicate player '{duplicate}' in {team} lineup" for duplicate in duplicates
         )
+
+    # Duplicate runners on bases are not allowed
+    seen_bases: set[str] = set()
+    for runner in state.bases:
+        if runner is None:
+            continue
+        if runner in seen_bases:
+            errors.append(f"duplicate runner '{runner}' found on multiple bases")
+        else:
+            seen_bases.add(runner)
 
     return ValidationResult(
         is_valid=not errors,

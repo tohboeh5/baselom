@@ -68,6 +68,8 @@ class GameState:
     outs: int
     bases: tuple[str | None, str | None, str | None]
     score: Score
+    balls: int = 0
+    strikes: int = 0
     current_batter_id: str | None = None
     current_pitcher_id: str | None = None
     lineups: Mapping[str, tuple[str, ...]] = field(
