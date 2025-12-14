@@ -10,6 +10,11 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 
+def _default_lineups() -> MappingProxyType:
+    """Provide empty immutable lineups for initialization."""
+    return MappingProxyType({"home": (), "away": ()})
+
+
 @dataclass(frozen=True)
 class Score:
     """Score tracking for both teams."""
@@ -45,6 +50,7 @@ class GameState:
         score: Current score.
         current_batter_id: ID of current batter.
         current_pitcher_id: ID of current pitcher.
+        lineups: Immutable batting orders for home and away teams.
     """
 
     inning: int
@@ -55,11 +61,17 @@ class GameState:
     current_batter_id: str | None = None
     current_pitcher_id: str | None = None
     lineups: Mapping[str, tuple[str, ...]] = field(
-        default_factory=lambda: MappingProxyType({"home": (), "away": ()}),
+        default_factory=_default_lineups,
     )
 
     def __post_init__(self) -> None:
         """Ensure lineups are immutable tuples wrapped in MappingProxyType."""
+        if isinstance(self.lineups, MappingProxyType) and all(
+            isinstance(players, tuple) for players in self.lineups.values()
+        ):
+            return
+        # Use object.__setattr__ to perform one-time normalization while keeping the
+        # dataclass frozen for callers.
         normalized_lineups = {
             team: tuple(players) for team, players in self.lineups.items()
         }

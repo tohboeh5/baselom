@@ -68,7 +68,7 @@ class TestValidateState:
         )
         result = validate_state(state)
         assert result.is_valid is False
-        assert "scores must be non-negative" in result.errors[0]
+        assert any("scores must be non-negative" in error for error in result.errors)
 
     def test_lineup_size_must_be_nine(
         self, valid_lineups: dict[str, tuple[str, ...]],
