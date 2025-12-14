@@ -134,10 +134,11 @@ def _record_out(state: GameState, event_type: str) -> tuple[GameState, str]:
     if outs >= 3:
         outs = 0
         bases = (None, None, None)
-        top = not state.top
-        if not top:
+        if state.top:
+            top = False
             inning = state.inning
         else:
+            top = True
             inning = state.inning + 1
 
     new_state = replace(
