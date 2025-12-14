@@ -94,14 +94,27 @@ fn process_walk(state: &GameState) -> GameState {
         state.bases.1.clone(),
         state.bases.2.clone(),
     ];
+    let mut incoming = state.current_batter_id.clone();
     let mut runs_scored = 0u32;
 
-    if bases[THIRD_BASE].is_some() {
+    for base_index in [FIRST_BASE, SECOND_BASE, THIRD_BASE] {
+        if incoming.is_none() {
+            break;
+        }
+
+        if bases[base_index].is_none() {
+            bases[base_index] = incoming.clone();
+            incoming = None;
+        } else {
+            let displaced = bases[base_index].clone();
+            bases[base_index] = incoming.clone();
+            incoming = displaced;
+        }
+    }
+
+    if incoming.is_some() {
         runs_scored += 1;
     }
-    bases[THIRD_BASE] = bases[SECOND_BASE].clone();
-    bases[SECOND_BASE] = bases[FIRST_BASE].clone();
-    bases[FIRST_BASE] = state.current_batter_id.clone();
 
     let mut score = state.score.clone();
     if runs_scored > 0 {

@@ -164,12 +164,20 @@ def _process_walk(state: GameState) -> GameState:
     score = state.score
     runs_scored = 0
 
-    # Forced advance: third -> home, second -> third, first -> second, batter -> first
-    if bases[THIRD_BASE] is not None:
+    incoming = state.current_batter_id
+    for base_index in (FIRST_BASE, SECOND_BASE, THIRD_BASE):
+        if incoming is None:
+            break
+        if bases[base_index] is None:
+            bases[base_index] = incoming
+            incoming = None
+        else:
+            outgoing = bases[base_index]
+            bases[base_index] = incoming
+            incoming = outgoing
+
+    if incoming is not None:
         runs_scored += 1
-    bases[THIRD_BASE] = bases[SECOND_BASE]
-    bases[SECOND_BASE] = bases[FIRST_BASE]
-    bases[FIRST_BASE] = state.current_batter_id
 
     if runs_scored:
         if state.top:
