@@ -3,6 +3,10 @@
 use crate::errors::BaselomError;
 use crate::models::{GameRules, GameState};
 
+const FIRST_BASE: usize = 0;
+const SECOND_BASE: usize = 1;
+const THIRD_BASE: usize = 2;
+
 /// Apply a pitch result to the game state.
 pub fn apply_pitch(
     state: &GameState,
@@ -85,15 +89,19 @@ fn record_out(state: &GameState) -> GameState {
 }
 
 fn process_walk(state: &GameState) -> GameState {
-    let mut bases = state.bases.clone();
+    let mut bases = [
+        state.bases.0.clone(),
+        state.bases.1.clone(),
+        state.bases.2.clone(),
+    ];
     let mut runs_scored = 0u32;
 
-    if bases.2.is_some() {
+    if bases[THIRD_BASE].is_some() {
         runs_scored += 1;
     }
-    bases.2 = bases.1.clone();
-    bases.1 = bases.0.clone();
-    bases.0 = state.current_batter_id.clone();
+    bases[THIRD_BASE] = bases[SECOND_BASE].clone();
+    bases[SECOND_BASE] = bases[FIRST_BASE].clone();
+    bases[FIRST_BASE] = state.current_batter_id.clone();
 
     let mut score = state.score.clone();
     if runs_scored > 0 {
@@ -107,7 +115,11 @@ fn process_walk(state: &GameState) -> GameState {
     GameState {
         balls: 0,
         strikes: 0,
-        bases,
+        bases: (
+            bases[FIRST_BASE].clone(),
+            bases[SECOND_BASE].clone(),
+            bases[THIRD_BASE].clone(),
+        ),
         score,
         ..state.clone()
     }

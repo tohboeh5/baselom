@@ -14,6 +14,10 @@ VALID_PITCH_RESULTS = {
     "foul_tip",
 }
 
+FIRST_BASE = 0
+SECOND_BASE = 1
+THIRD_BASE = 2
+
 
 def _validate_lineup(team: str, lineup: list[str]) -> None:
     if len(lineup) != 9:
@@ -88,7 +92,8 @@ def apply_pitch(
 
     validation = validate_state(state)
     if not validation.is_valid:
-        raise ValidationError(validation.errors[0])
+        message = validation.errors[0] if validation.errors else "invalid game state"
+        raise ValidationError(message)
 
     if state.outs > 2:
         raise StateError("cannot apply pitch when half-inning is already complete")
@@ -110,12 +115,14 @@ def apply_pitch(
             new_state, event_type = _record_out(state, "strikeout_swinging")
         else:
             new_state = replace(state, strikes=state.strikes + 1)
-    else:  # strike_called or strike_swinging
+    elif pitch_result in ("strike_called", "strike_swinging"):
         if state.strikes < 2:
             new_state = replace(state, strikes=state.strikes + 1)
         else:
             suffix = "looking" if pitch_result == "strike_called" else "swinging"
             new_state, event_type = _record_out(state, f"strikeout_{suffix}")
+    else:
+        raise ValidationError(f"unhandled pitch_result '{pitch_result}'")
 
     return new_state, {
         "event_type": event_type,
@@ -158,11 +165,11 @@ def _process_walk(state: GameState) -> GameState:
     runs_scored = 0
 
     # Forced advance: third -> home, second -> third, first -> second, batter -> first
-    if bases[2] is not None:
+    if bases[THIRD_BASE] is not None:
         runs_scored += 1
-    bases[2] = bases[1]
-    bases[1] = bases[0]
-    bases[0] = state.current_batter_id
+    bases[THIRD_BASE] = bases[SECOND_BASE]
+    bases[SECOND_BASE] = bases[FIRST_BASE]
+    bases[FIRST_BASE] = state.current_batter_id
 
     if runs_scored:
         if state.top:
