@@ -11,6 +11,10 @@ pub struct GameState {
     pub top: bool,
     /// Number of outs (0-2)
     pub outs: u8,
+    /// Number of balls in current plate appearance (0-3)
+    pub balls: u8,
+    /// Number of strikes in current plate appearance (0-2)
+    pub strikes: u8,
     /// Base runners: (first, second, third)
     pub bases: (Option<String>, Option<String>, Option<String>),
     /// Current score
@@ -19,6 +23,22 @@ pub struct GameState {
     pub current_batter_id: Option<String>,
     /// ID of current pitcher
     pub current_pitcher_id: Option<String>,
+}
+
+impl Default for GameState {
+    fn default() -> Self {
+        Self {
+            inning: 1,
+            top: true,
+            outs: 0,
+            balls: 0,
+            strikes: 0,
+            bases: (None, None, None),
+            score: Score::default(),
+            current_batter_id: None,
+            current_pitcher_id: None,
+        }
+    }
 }
 
 /// Score tracking for both teams.
@@ -96,6 +116,8 @@ mod tests {
             inning: 1,
             top: true,
             outs: 0,
+            balls: 0,
+            strikes: 0,
             bases: (None, None, None),
             score: Score::default(),
             current_batter_id: None,

@@ -1,5 +1,7 @@
 """Tests for validators."""
 
+from dataclasses import replace
+
 from baselom_core.models import GameState, Score, normalize_lineups
 from baselom_core.validators import validate_state
 
@@ -115,3 +117,17 @@ class TestValidateState:
         result = validate_state(state)
         assert result.is_valid is False
         assert "duplicate player 'a1' in away lineup" in result.errors
+
+    def test_invalid_balls(self, initial_state: GameState) -> None:
+        """Balls above 3 should fail validation."""
+        state = replace(initial_state, balls=4)
+        result = validate_state(state)
+        assert result.is_valid is False
+        assert any("balls must be in range" in error for error in result.errors)
+
+    def test_duplicate_runners_invalid(self, initial_state: GameState) -> None:
+        """Duplicate runners on bases are invalid."""
+        state = replace(initial_state, bases=("runner", "runner", None))
+        result = validate_state(state)
+        assert result.is_valid is False
+        assert any("duplicate runner" in error for error in result.errors)

@@ -27,7 +27,11 @@ def initial_state(valid_lineups: dict[str, tuple[str, ...]]) -> GameState:
         inning=1,
         top=True,
         outs=0,
+        balls=0,
+        strikes=0,
         bases=(None, None, None),
         score=Score(home=0, away=0),
+        current_batter_id=valid_lineups["away"][0],
+        current_pitcher_id=valid_lineups["home"][0],
         lineups=normalize_lineups(valid_lineups),
     )
